@@ -1,6 +1,6 @@
 """
 Conversation handlers para crear y editar tareas
-Maneja diálogos multi-paso para crear nuevas tareas
+Maneja diálogos multi-paso para crear nuevas tareas, subtareas y edición
 """
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
@@ -23,19 +23,19 @@ project_manager = Project(db_manager)
     TASK_PRIORITY,
     TASK_DEADLINE,
     TASK_PROJECT,
-    TASK_CONFIRM
-) = range(6)
+    TASK_CONFIRM,
+    ADD_SUBTASK_TITLE,
+    ADD_SUBTASK_DESC,
+    EDIT_FIELD,
+    EDIT_VALUE
+) = range(10)
 
 
 async def create_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Inicia el proceso de creación de tarea.
-    Primera pregunta: ¿Cuál es el título de la tarea?
-    """
+    """Inicia el proceso de creación de tarea"""
     query = update.callback_query
     await query.answer()
     
-    # Inicializar diccionario para guardar datos temporales
     context.user_data['new_task'] = {}
     
     message = """
@@ -50,7 +50,6 @@ Vamos a crear una nueva tarea paso a paso.
 Ejemplo: "Implementar API de pagos"
 """
     
-    # Botón para cancelar
     keyboard = [[InlineKeyboardButton("❌ Cancelar", callback_data="task_create_cancel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -64,13 +63,9 @@ Ejemplo: "Implementar API de pagos"
 
 
 async def task_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Recibe el título de la tarea.
-    Segunda pregunta: ¿Descripción? (opcional)
-    """
+    """Recibe el título de la tarea"""
     title = update.message.text
     
-    # Validar longitud
     if len(title) > config.MAX_TASK_NAME_LENGTH:
         await update.message.reply_text(
             f"❌ El título es muy largo. Máximo {config.MAX_TASK_NAME_LENGTH} caracteres.\n\n"
@@ -78,7 +73,6 @@ async def task_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return TASK_TITLE
     
-    # Guardar título
     context.user_data['new_task']['title'] = title
     
     message = f"""
@@ -106,42 +100,32 @@ Envía la descripción o escribe <code>-</code> para omitir.
 
 
 async def task_description_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Recibe la descripción de la tarea.
-    Tercera pregunta: ¿Prioridad?
-    """
-    # Puede venir de mensaje de texto o de botón "omitir"
+    """Recibe la descripción de la tarea"""
+    
     if update.callback_query:
         query = update.callback_query
         await query.answer()
         description = ""
-        is_callback = True
     else:
         description = update.message.text
-        is_callback = False
-        
-        # Si el usuario escribió "-", omitir descripción
         if description == "-":
             description = ""
     
-    # Guardar descripción
     context.user_data['new_task']['description'] = description
     
     title = context.user_data['new_task']['title']
-    desc_text = description if description else "(sin descripción)"
     
     message = f"""
 📝 <b>Nueva Tarea</b>
 
 ✅ Título: {title}
-✅ Descripción: {desc_text}
+✅ Descripción: {description if description else "Sin descripción"}
 
 <b>Paso 3/5: Prioridad</b>
 
-Selecciona la prioridad de la tarea:
+¿Qué prioridad tiene esta tarea?
 """
     
-    # Teclado de prioridades
     keyboard = [
         [InlineKeyboardButton("🔴 Alta", callback_data="task_priority_high")],
         [InlineKeyboardButton("🟡 Media", callback_data="task_priority_medium")],
@@ -149,8 +133,8 @@ Selecciona la prioridad de la tarea:
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    if is_callback:
-        await query.edit_message_text(
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
             message,
             parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
@@ -166,50 +150,37 @@ Selecciona la prioridad de la tarea:
 
 
 async def task_priority_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Recibe la prioridad de la tarea.
-    Cuarta pregunta: ¿Fecha límite?
-    """
+    """Recibe la prioridad de la tarea"""
     query = update.callback_query
     await query.answer()
     
-    # Extraer prioridad del callback_data: "task_priority_high" -> "high"
     priority = query.data.split('_')[-1]
     context.user_data['new_task']['priority'] = priority
     
     title = context.user_data['new_task']['title']
-    desc_text = context.user_data['new_task']['description'] or "(sin descripción)"
-    priority_text = config.PRIORITY_LEVELS.get(priority, "Media")
-    
-    # Calcular fechas sugeridas
-    today = date.today()
-    tomorrow = today + timedelta(days=1)
-    next_week = today + timedelta(days=7)
+    priority_text = config.PRIORITY_LEVELS.get(priority, priority)
     
     message = f"""
 📝 <b>Nueva Tarea</b>
 
 ✅ Título: {title}
-✅ Descripción: {desc_text}
 ✅ Prioridad: {priority_text}
 
 <b>Paso 4/5: Fecha límite (opcional)</b>
 
 ¿Cuándo debe estar lista esta tarea?
 
-Puedes usar los botones rápidos o enviar una fecha en formato <code>DD/MM/YYYY</code>
-Ejemplo: <code>15/11/2024</code>
+Puedes:
+• Escribir una fecha: YYYY-MM-DD
+• Usar atajos rápidos
 """
     
     keyboard = [
-        [InlineKeyboardButton(f"📅 Hoy ({today.strftime('%d/%m')})", 
-                             callback_data=f"task_deadline_{today.isoformat()}")],
-        [InlineKeyboardButton(f"📅 Mañana ({tomorrow.strftime('%d/%m')})", 
-                             callback_data=f"task_deadline_{tomorrow.isoformat()}")],
-        [InlineKeyboardButton(f"📅 En 1 semana ({next_week.strftime('%d/%m')})", 
-                             callback_data=f"task_deadline_{next_week.isoformat()}")],
-        [InlineKeyboardButton("⏭️ Sin fecha límite", 
-                             callback_data="task_deadline_none")]
+        [InlineKeyboardButton("📅 Hoy", callback_data="task_deadline_today")],
+        [InlineKeyboardButton("📅 Mañana", callback_data="task_deadline_tomorrow")],
+        [InlineKeyboardButton("📅 En 3 días", callback_data="task_deadline_3")],
+        [InlineKeyboardButton("📅 En 1 semana", callback_data="task_deadline_7")],
+        [InlineKeyboardButton("⏭️ Sin fecha", callback_data="task_deadline_none")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -223,98 +194,75 @@ Ejemplo: <code>15/11/2024</code>
 
 
 async def task_deadline_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Recibe la fecha límite de la tarea.
-    Quinta pregunta: ¿Asociar a un proyecto?
-    """
-    # Puede venir de callback (botones) o mensaje de texto (fecha escrita)
+    """Recibe la fecha límite de la tarea"""
+    
     if update.callback_query:
         query = update.callback_query
         await query.answer()
         
-        # Extraer fecha del callback_data
-        if "none" in query.data:
-            deadline = None
-        else:
-            deadline_str = query.data.split('_')[-1]  # "task_deadline_2024-10-30" -> "2024-10-30"
-            deadline = deadline_str
+        deadline_option = query.data.split('_')[-1]
         
-        is_callback = True
-    else:
-        # Usuario escribió la fecha
-        date_text = update.message.text
-        
-        if date_text == "-":
+        if deadline_option == "none":
             deadline = None
+        elif deadline_option == "today":
+            deadline = date.today().strftime("%Y-%m-%d")
+        elif deadline_option == "tomorrow":
+            deadline = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
         else:
-            # Parsear fecha DD/MM/YYYY
             try:
-                date_obj = datetime.strptime(date_text, "%d/%m/%Y").date()
-                deadline = date_obj.isoformat()
+                days = int(deadline_option)
+                deadline = (date.today() + timedelta(days=days)).strftime("%Y-%m-%d")
             except ValueError:
-                await update.message.reply_text(
-                    "❌ Formato de fecha inválido.\n\n"
-                    "Por favor usa el formato DD/MM/YYYY\n"
-                    "Ejemplo: 15/11/2024\n\n"
-                    "O escribe <code>-</code> para omitir."
-                )
-                return TASK_DEADLINE
-        
-        is_callback = False
+                deadline = None
+    else:
+        deadline_text = update.message.text.strip()
+        try:
+            datetime.strptime(deadline_text, "%Y-%m-%d")
+            deadline = deadline_text
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Formato de fecha inválido. Usa YYYY-MM-DD\n\n"
+                "Ejemplo: 2024-12-31\n\n"
+                "Intenta de nuevo:"
+            )
+            return TASK_DEADLINE
     
-    # Guardar deadline
     context.user_data['new_task']['deadline'] = deadline
     
-    # Obtener proyectos activos para asociar
-    projects = project_manager.get_all(status='active')
-    
     title = context.user_data['new_task']['title']
-    desc_text = context.user_data['new_task']['description'] or "(sin descripción)"
-    priority = context.user_data['new_task']['priority']
-    priority_text = config.PRIORITY_LEVELS.get(priority, "Media")
+    priority_text = config.PRIORITY_LEVELS.get(context.user_data['new_task']['priority'], "Media")
+    deadline_text = deadline if deadline else "Sin fecha límite"
     
-    if deadline:
-        try:
-            deadline_date = datetime.fromisoformat(deadline).date()
-            deadline_text = deadline_date.strftime("%d/%m/%Y")
-        except:
-            deadline_text = deadline
-    else:
-        deadline_text = "(sin fecha límite)"
+    # Obtener proyectos activos
+    projects = project_manager.get_all(status='active')
     
     message = f"""
 📝 <b>Nueva Tarea</b>
 
 ✅ Título: {title}
-✅ Descripción: {desc_text}
 ✅ Prioridad: {priority_text}
 ✅ Fecha límite: {deadline_text}
 
 <b>Paso 5/5: Proyecto (opcional)</b>
 
-¿Quieres asociar esta tarea a un proyecto?
+¿A qué proyecto pertenece esta tarea?
 """
     
     keyboard = []
     
-    # Agregar botones de proyectos activos
     if projects:
-        for project in projects[:5]:  # Máximo 5 proyectos
+        for project in projects[:5]:
             keyboard.append([InlineKeyboardButton(
-                f"📁 {project['name'][:30]}",
+                f"📁 {project['name']}",
                 callback_data=f"task_project_{project['id']}"
             )])
     
-    # Botón para no asociar a proyecto
-    keyboard.append([InlineKeyboardButton(
-        "⏭️ Sin proyecto",
-        callback_data="task_project_none"
-    )])
+    keyboard.append([InlineKeyboardButton("⏭️ Sin proyecto", callback_data="task_project_none")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    if is_callback:
-        await query.edit_message_text(
+    if update.callback_query:
+        await update.callback_query.edit_message_text(
             message,
             parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
@@ -330,55 +278,39 @@ async def task_deadline_received(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def task_project_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Recibe el proyecto asociado.
-    Muestra resumen y pide confirmación.
-    """
+    """Recibe el proyecto de la tarea"""
     query = update.callback_query
     await query.answer()
     
-    # Extraer ID del proyecto
-    if "none" in query.data:
+    if query.data == "task_project_none":
         project_id = None
-        project_name = None
     else:
-        project_id = int(query.data.split('_')[-1])
-        project = project_manager.get_by_id(project_id)
-        project_name = project['name'] if project else None
+        try:
+            project_id = int(query.data.split('_')[-1])
+        except ValueError:
+            project_id = None
     
-    # Guardar proyecto
     context.user_data['new_task']['project_id'] = project_id
     
-    # Mostrar resumen y pedir confirmación
-    title = context.user_data['new_task']['title']
-    description = context.user_data['new_task']['description']
-    priority = context.user_data['new_task']['priority']
-    deadline = context.user_data['new_task']['deadline']
+    # Mostrar resumen para confirmar
+    task_data = context.user_data['new_task']
     
-    priority_text = config.PRIORITY_LEVELS.get(priority, "Media")
-    
-    if deadline:
-        try:
-            deadline_date = datetime.fromisoformat(deadline).date()
-            deadline_text = deadline_date.strftime("%d/%m/%Y")
-        except:
-            deadline_text = deadline
-    else:
-        deadline_text = "Sin fecha límite"
-    
-    project_text = f"📁 {project_name}" if project_name else "Sin proyecto"
-    desc_text = description if description else "Sin descripción"
+    project_name = "Sin proyecto"
+    if project_id:
+        project = project_manager.get_by_id(project_id)
+        if project:
+            project_name = project['name']
     
     message = f"""
-📝 <b>Resumen de Nueva Tarea</b>
+📝 <b>Resumen de la Nueva Tarea</b>
 
-<b>Título:</b> {title}
-<b>Descripción:</b> {desc_text}
-<b>Prioridad:</b> {priority_text}
-<b>Fecha límite:</b> {deadline_text}
-<b>Proyecto:</b> {project_text}
+<b>Título:</b> {task_data['title']}
+<b>Descripción:</b> {task_data.get('description', 'Sin descripción')}
+<b>Prioridad:</b> {config.PRIORITY_LEVELS.get(task_data['priority'], 'Media')}
+<b>Fecha límite:</b> {task_data.get('deadline', 'Sin fecha')}
+<b>Proyecto:</b> {project_name}
 
-¿Confirmas la creación de esta tarea?
+¿Crear esta tarea?
 """
     
     keyboard = [
@@ -399,16 +331,12 @@ async def task_project_received(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def task_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Crea la tarea en la base de datos.
-    """
+    """Crea la tarea en la base de datos"""
     query = update.callback_query
     await query.answer()
     
-    # Obtener datos guardados
     task_data = context.user_data.get('new_task', {})
     
-    # Crear tarea en la base de datos
     try:
         task_id = task_manager.create(
             title=task_data['title'],
@@ -426,26 +354,28 @@ La tarea "{task_data['title']}" ha sido creada.
 Puedes verla en el menú de tareas.
 """
         
+        keyboard = [
+            [InlineKeyboardButton("👁️ Ver tarea", callback_data=f"task_view_{task_id}")],
+            [InlineKeyboardButton("📋 Ver todas las tareas", callback_data="task_list_all")]
+        ]
+        
         await query.edit_message_text(
             message,
             parse_mode=ParseMode.HTML,
-            reply_markup=get_tasks_menu()
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
     except Exception as e:
         message = f"❌ Error al crear la tarea: {str(e)}"
         await query.edit_message_text(message)
     
-    # Limpiar datos temporales
     context.user_data.pop('new_task', None)
     
     return ConversationHandler.END
 
 
 async def task_creation_cancelled(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Cancela la creación de la tarea.
-    """
+    """Cancela la creación de la tarea"""
     query = update.callback_query
     await query.answer()
     
@@ -461,7 +391,6 @@ No se ha creado ninguna tarea.
         reply_markup=get_tasks_menu()
     )
     
-    # Limpiar datos temporales
     context.user_data.pop('new_task', None)
     
     return ConversationHandler.END

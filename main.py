@@ -231,6 +231,78 @@ class ProductivityBot:
         
         self.app.add_handler(task_creation_handler)
         
+        # ConversationHandler para agregar subtarea
+        subtask_creation_handler = ConversationHandler(
+            entry_points=[
+                CallbackQueryHandler(
+                    tasks.add_subtask, 
+                    pattern="^task_add_subtask_"
+                )
+            ],
+            states={
+                tasks.ADD_SUBTASK_TITLE: [
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND, 
+                        tasks.subtask_title_received
+                    )
+                ],
+                tasks.ADD_SUBTASK_DESC: [
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND,
+                        tasks.subtask_description_received
+                    ),
+                    CallbackQueryHandler(
+                        tasks.subtask_description_received,
+                        pattern="^subtask_skip_desc_"
+                    )
+                ]
+            },
+            fallbacks=[
+                CallbackQueryHandler(
+                    tasks.view_task,
+                    pattern="^task_view_"
+                )
+            ],
+            allow_reentry=True,
+            name="subtask_creation",
+            persistent=False
+        )
+        
+        self.app.add_handler(subtask_creation_handler)
+        
+        # ConversationHandler para editar tarea
+        task_edit_handler = ConversationHandler(
+            entry_points=[
+                CallbackQueryHandler(
+                    tasks.edit_task_field, 
+                    pattern="^edit_task_field_"
+                )
+            ],
+            states={
+                tasks.EDIT_VALUE: [
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND,
+                        tasks.edit_task_value_received
+                    ),
+                    CallbackQueryHandler(
+                        tasks.edit_task_value_received,
+                        pattern="^edit_priority_"
+                    )
+                ]
+            },
+            fallbacks=[
+                CallbackQueryHandler(
+                    tasks.view_task,
+                    pattern="^task_view_"
+                )
+            ],
+            allow_reentry=True,
+            name="task_edit",
+            persistent=False
+        )
+        
+        self.app.add_handler(task_edit_handler)
+        
         # Handlers para listar y ver tareas
         self.app.add_handler(CallbackQueryHandler(
             tasks.list_tasks,
@@ -258,20 +330,10 @@ class ProductivityBot:
             pattern="^task_postpone_"
         ))
         
-        # ========== NUEVOS HANDLERS ==========
-        # Estos handlers conectan los botones con las nuevas funcionalidades
+        # ========== HANDLERS PARA FUNCIONALIDADES NUEVAS ==========
         
-        # Handler para agregar subtarea
-        # Cuando presionas "➕ Agregar subtarea", este handler se activa
-        # El pattern="^task_add_subtask_" coincide con callback_data como "task_add_subtask_123"
-        self.app.add_handler(CallbackQueryHandler(
-            tasks.add_subtask,
-            pattern="^task_add_subtask_"
-        ))
-        
-        # Handler para ver lista de subtareas
-        # Cuando presionas "📋 Ver subtareas", este handler se activa
-        # El pattern="^task_view_subtasks_" coincide con "task_view_subtasks_123"
+        # Handler para ver subtareas
+        # Cuando presionas "📋 Ver subtareas", este handler muestra la lista
         self.app.add_handler(CallbackQueryHandler(
             tasks.view_subtasks,
             pattern="^task_view_subtasks_"
@@ -279,7 +341,6 @@ class ProductivityBot:
         
         # Handler para el menú de edición de tarea
         # Cuando presionas "✏️ Editar", te muestra un menú con opciones de qué editar
-        # El pattern="^task_edit_" coincide con "task_edit_123"
         self.app.add_handler(CallbackQueryHandler(
             tasks.edit_task_menu,
             pattern="^task_edit_"
@@ -287,7 +348,6 @@ class ProductivityBot:
         
         # Handler para solicitar confirmación de eliminación
         # Cuando presionas "🗑️ Eliminar", primero te pide confirmar
-        # El pattern="^task_delete_confirm_" coincide con "task_delete_confirm_123"
         self.app.add_handler(CallbackQueryHandler(
             tasks.delete_task_confirm,
             pattern="^task_delete_confirm_"
@@ -296,16 +356,15 @@ class ProductivityBot:
         # Handler para eliminar después de confirmar
         # Cuando confirmas la eliminación presionando "✅ Sí, eliminar"
         # IMPORTANTE: Este handler debe ir DESPUÉS del de confirmación
-        # El pattern="^task_delete_(?!confirm)" usa "negative lookahead" que significa:
+        # El pattern usa "negative lookahead" (?!confirm) que significa:
         #   - Coincide con "task_delete_123" ✓
         #   - NO coincide con "task_delete_confirm_123" ✗
-        # Esto es porque ambos empiezan con "task_delete_", pero necesitamos distinguirlos
         self.app.add_handler(CallbackQueryHandler(
             tasks.delete_task_confirmed,
             pattern="^task_delete_(?!confirm)"
         ))
         
-        # ========== FIN DE NUEVOS HANDLERS ==========
+        # ========== FIN DE HANDLERS NUEVOS ==========
         
         # Callbacks de notas
         self.app.add_handler(CallbackQueryHandler(
@@ -411,6 +470,8 @@ Usa los botones del menú inferior para navegar:
 • Crear tareas con prioridades
 • Ver tareas por fecha o prioridad
 • Completar y posponer tareas
+• Agregar subtareas
+• Editar y eliminar tareas
 
 📅 <b>Hoy</b>: Vista rápida del día
 • Tareas de hoy
