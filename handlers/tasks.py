@@ -699,3 +699,463 @@ async def cancel_task_creation(update: Update, context: ContextTypes.DEFAULT_TYP
     )
     
     return ConversationHandler.END
+
+async def add_subtask(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Muestra el menú para agregar una subtarea.
+    
+    Callback format: task_add_subtask_123
+    
+    **¿Qué hace esta función?**
+    - Se ejecuta cuando presionas el botón "➕ Agregar subtarea"
+    - Extrae el ID de la tarea padre del botón presionado
+    - Verifica que la tarea padre existe
+    - Muestra un mensaje indicando cómo agregar subtareas
+    
+    **¿Por qué no crea la subtarea directamente?**
+    Para crear tareas (incluyendo subtareas) necesitamos un ConversationHandler
+    que haga un diálogo paso a paso. Por ahora, esta función solo informa al usuario.
+    
+    **Flujo**:
+    1. Usuario presiona "➕ Agregar subtarea" en tarea con ID 123
+    2. callback_data = "task_add_subtask_123"
+    3. Esta función extrae el "123"
+    4. Busca la tarea padre en la base de datos
+    5. Muestra un mensaje con instrucciones
+    """
+    query = update.callback_query
+    await query.answer()  # Confirma que recibimos el click del botón
+    
+    # Extraer el ID de la tarea padre del callback_data
+    # Ejemplo: "task_add_subtask_123" → split('_') → ["task", "add", "subtask", "123"]
+    # Tomamos el último elemento: "123" y lo convertimos a número
+    try:
+        parent_task_id = int(query.data.split('_')[-1])
+    except ValueError:
+        # Si no se puede convertir a número, mostrar error
+        await query.answer("❌ Error: ID inválido", show_alert=True)
+        return
+    
+    # Verificar que la tarea padre existe en la base de datos
+    parent_task = task_manager.get_by_id(parent_task_id)
+    
+    if not parent_task:
+        await query.edit_message_text(
+            "❌ Tarea no encontrada",
+            reply_markup=get_tasks_menu()
+        )
+        return
+    
+    # Construir mensaje informativo
+    message = f"""
+➕ <b>Agregar Subtarea</b>
+
+Tarea principal: <b>{parent_task['title']}</b>
+
+<i>Nota: Esta funcionalidad aún no está completamente implementada.</i>
+
+Para agregar subtareas por ahora, debes:
+1. Crear una nueva tarea desde el menú principal
+2. En la base de datos se asociará como subtarea
+
+<i>En una próxima actualización podrás crear subtareas directamente desde aquí.</i>
+"""
+    
+    # Crear botón para volver a la tarea padre
+    keyboard = [[InlineKeyboardButton(
+        f"{config.EMOJI['back']} Volver",
+        callback_data=f"task_view_{parent_task_id}"
+    )]]
+    
+    # Mostrar mensaje
+    await query.edit_message_text(
+        message,
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def view_subtasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Muestra todas las subtareas de una tarea.
+    
+    Callback format: task_view_subtasks_123
+    
+    **¿Qué hace esta función?**
+    - Se ejecuta cuando presionas "📋 Ver subtareas"
+    - Obtiene todas las subtareas de la tarea padre
+    - Muestra un resumen con el progreso (X/Y completadas)
+    - Crea botones para ver cada subtarea
+    
+    **Explicación técnica**:
+    - Las subtareas son tareas normales con un campo parent_task_id
+    - El task_manager.get_subtasks(id) busca en la BD:
+      SELECT * FROM tasks WHERE parent_task_id = ?
+    
+    **Flujo**:
+    1. Usuario presiona "📋 Ver subtareas" en tarea ID 123
+    2. callback_data = "task_view_subtasks_123"
+    3. Esta función extrae el "123"
+    4. Busca todas las tareas donde parent_task_id = 123
+    5. Muestra lista con botones para cada subtarea
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    # Extraer ID de la tarea padre
+    try:
+        parent_task_id = int(query.data.split('_')[-1])
+    except ValueError:
+        await query.answer("❌ Error: ID inválido", show_alert=True)
+        return
+    
+    # Obtener tarea padre de la base de datos
+    parent_task = task_manager.get_by_id(parent_task_id)
+    
+    if not parent_task:
+        await query.edit_message_text(
+            "❌ Tarea no encontrada",
+            reply_markup=get_tasks_menu()
+        )
+        return
+    
+    # Obtener todas las subtareas
+    # get_subtasks busca en la BD: WHERE parent_task_id = parent_task_id
+    subtasks = task_manager.get_subtasks(parent_task_id)
+    
+    # Si no hay subtareas, mostrar mensaje
+    if not subtasks:
+        message = f"""
+📋 <b>Subtareas</b>
+
+Tarea principal: <b>{parent_task['title']}</b>
+
+❌ Esta tarea no tiene subtareas todavía.
+"""
+        keyboard = [[InlineKeyboardButton(
+            f"{config.EMOJI['back']} Volver",
+            callback_data=f"task_view_{parent_task_id}"
+        )]]
+        
+        await query.edit_message_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+    
+    # Calcular cuántas subtareas están completadas
+    # Usamos list comprehension para filtrar
+    completed = len([s for s in subtasks if s['status'] == 'completed'])
+    
+    # Construir mensaje con el resumen
+    message = f"""
+📋 <b>Subtareas de: {parent_task['title']}</b>
+
+Progreso: {completed}/{len(subtasks)} completadas
+
+<b>Lista de subtareas:</b>
+"""
+    
+    # Agregar cada subtarea al mensaje
+    for i, subtask in enumerate(subtasks, 1):  # enumerate empieza en 1
+        # Emoji según el estado de la subtarea
+        if subtask['status'] == 'completed':
+            status_emoji = "✅"
+        elif subtask['status'] == 'in_progress':
+            status_emoji = "🔄"
+        else:
+            status_emoji = "⏳"
+        
+        # Emoji según prioridad usando un diccionario
+        priority_emoji = {
+            'high': "🔴",
+            'medium': "🟡",
+            'low': "🟢"
+        }.get(subtask['priority'], "⚪")  # ⚪ si no encuentra la prioridad
+        
+        # Agregar línea al mensaje
+        message += f"\n{i}. {status_emoji}{priority_emoji} {subtask['title']}"
+    
+    # Crear botones para cada subtarea (máximo 10 para no saturar)
+    keyboard = []
+    for subtask in subtasks[:10]:  # Solo las primeras 10 subtareas
+        # Truncar título si es muy largo (máximo 30 caracteres)
+        title_short = subtask['title'][:30] + "..." if len(subtask['title']) > 30 else subtask['title']
+        
+        keyboard.append([InlineKeyboardButton(
+            f"👁️ {title_short}",
+            callback_data=f"task_view_{subtask['id']}"
+        )])
+    
+    # Botón para volver a la tarea principal
+    keyboard.append([InlineKeyboardButton(
+        f"{config.EMOJI['back']} Volver a tarea principal",
+        callback_data=f"task_view_{parent_task_id}"
+    )])
+    
+    # Mostrar el mensaje con los botones
+    await query.edit_message_text(
+        message,
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+# ==================== EDICIÓN DE TAREAS ====================
+
+async def edit_task_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Muestra el menú de opciones para editar una tarea.
+    
+    Callback format: task_edit_123
+    
+    **¿Qué hace esta función?**
+    - Se ejecuta cuando presionas "✏️ Editar"
+    - Por ahora solo muestra un mensaje informativo
+    - En el futuro, mostrará opciones como:
+      • Editar título
+      • Editar descripción
+      • Cambiar prioridad
+      • Cambiar fecha límite
+      • Cambiar proyecto asociado
+    
+    **¿Por qué no edita directamente?**
+    La edición completa requiere ConversationHandler para hacer diálogos.
+    Por ejemplo, si quieres editar el título:
+    1. Bot pregunta: "¿Nuevo título?"
+    2. Usuario escribe el título
+    3. Bot pregunta: "¿Confirmas el cambio?"
+    4. Usuario confirma
+    5. Bot actualiza en la BD
+    
+    Este flujo multi-paso necesita ConversationHandler, que es más complejo.
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    # Extraer ID de la tarea
+    try:
+        task_id = int(query.data.split('_')[-1])
+    except ValueError:
+        await query.answer("❌ Error: ID inválido", show_alert=True)
+        return
+    
+    # Obtener tarea de la base de datos
+    task = task_manager.get_by_id(task_id)
+    
+    if not task:
+        await query.edit_message_text(
+            "❌ Tarea no encontrada",
+            reply_markup=get_tasks_menu()
+        )
+        return
+    
+    # Mensaje informativo
+    message = f"""
+✏️ <b>Editar Tarea</b>
+
+<b>Tarea:</b> {task['title']}
+
+<i>Nota: La edición de tareas aún no está completamente implementada.</i>
+
+Para editar una tarea por ahora, necesitas:
+1. Marcarla como completada si ya terminó
+2. Usar "Posponer" para cambiar la fecha
+3. Para cambios mayores, crear una nueva tarea
+
+<i>En una próxima actualización podrás editar todos los campos directamente.</i>
+"""
+    
+    # Botón para volver
+    keyboard = [[InlineKeyboardButton(
+        f"{config.EMOJI['back']} Volver",
+        callback_data=f"task_view_{task_id}"
+    )]]
+    
+    await query.edit_message_text(
+        message,
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+# ==================== ELIMINACIÓN DE TAREAS ====================
+
+async def delete_task_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Solicita confirmación antes de eliminar una tarea.
+    
+    Callback format: task_delete_confirm_123
+    
+    **¿Por qué pedir confirmación?**
+    - Previene eliminaciones accidentales
+    - Da al usuario la oportunidad de cancelar
+    - Muestra información de la tarea para que sepa qué va a eliminar
+    
+    **Flujo de eliminación**:
+    1. Usuario presiona "🗑️ Eliminar" → llama a esta función
+    2. Esta función muestra confirmación
+    3. Usuario presiona "✅ Sí, eliminar" → llama a delete_task_confirmed()
+    4. delete_task_confirmed() ejecuta DELETE en la BD
+    
+    **¿Qué pasa con las subtareas?**
+    Si la tarea tiene subtareas, también se eliminan (CASCADE).
+    Por eso mostramos una advertencia especial.
+    
+    **Explicación del callback_data**:
+    - "task_delete_confirm_123" → Esta función (confirmación)
+    - "task_delete_123" → delete_task_confirmed() (eliminación real)
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    # Extraer ID de la tarea
+    try:
+        task_id = int(query.data.split('_')[-1])
+    except ValueError:
+        await query.answer("❌ Error: ID inválido", show_alert=True)
+        return
+    
+    # Obtener tarea de la base de datos
+    task = task_manager.get_by_id(task_id)
+    
+    if not task:
+        await query.edit_message_text(
+            "❌ Tarea no encontrada",
+            reply_markup=get_tasks_menu()
+        )
+        return
+    
+    # Verificar si tiene subtareas
+    subtasks = task_manager.get_subtasks(task_id)
+    
+    # Si tiene subtareas, agregar advertencia
+    warning = ""
+    if subtasks:
+        warning = f"\n\n⚠️ <b>Atención:</b> Esta tarea tiene {len(subtasks)} subtarea(s). Al eliminarla, también se eliminarán todas sus subtareas."
+    
+    # Construir mensaje de confirmación
+    message = f"""
+🗑️ <b>Confirmar Eliminación</b>
+
+¿Estás seguro de que quieres eliminar esta tarea?
+
+<b>Tarea:</b> {task['title']}
+<b>Estado:</b> {config.TASK_STATUS.get(task['status'], task['status'])}
+<b>Prioridad:</b> {config.PRIORITY_LEVELS.get(task['priority'], task['priority'])}{warning}
+
+<b>⚠️ Esta acción no se puede deshacer.</b>
+"""
+    
+    # Botones de confirmación
+    # - "Sí, eliminar" → task_delete_123 (sin "_confirm")
+    # - "No, cancelar" → task_view_123 (vuelve a ver la tarea)
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "✅ Sí, eliminar",
+                callback_data=f"task_delete_{task_id}"
+            ),
+            InlineKeyboardButton(
+                "❌ No, cancelar",
+                callback_data=f"task_view_{task_id}"
+            )
+        ]
+    ]
+    
+    await query.edit_message_text(
+        message,
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def delete_task_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Elimina la tarea después de la confirmación.
+    
+    Callback format: task_delete_123 (sin "confirm")
+    
+    **¿Qué hace esta función?**
+    - Solo se ejecuta DESPUÉS de que el usuario confirma
+    - Llama a task_manager.delete(id) que ejecuta:
+      DELETE FROM tasks WHERE id = ?
+    - Si tiene subtareas, también se eliminan (ON DELETE CASCADE)
+    - Muestra mensaje de éxito y vuelve al menú de tareas
+    
+    **Explicación técnica de la eliminación**:
+    
+    En database/models.py, el método delete() hace:
+    ```python
+    def delete(self, task_id):
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        # Esta query elimina la tarea
+        cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        
+        # Como la tabla tiene ON DELETE CASCADE,
+        # automáticamente elimina subtareas
+        
+        conn.commit()
+        conn.close()
+        return True
+    ```
+    
+    **Flujo completo**:
+    1. delete_task_confirm() muestra: "¿Seguro?"
+    2. Usuario presiona "✅ Sí, eliminar"
+    3. Esta función se ejecuta
+    4. Llama a task_manager.delete(123)
+    5. Se elimina de la BD
+    6. Muestra mensaje de éxito
+    7. Vuelve al menú de tareas
+    """
+    query = update.callback_query
+    
+    # Extraer ID de la tarea
+    try:
+        task_id = int(query.data.split('_')[-1])
+    except ValueError:
+        await query.answer("❌ Error: ID inválido", show_alert=True)
+        return
+    
+    # Obtener título antes de eliminar (para el mensaje de confirmación)
+    task = task_manager.get_by_id(task_id)
+    task_title = task['title'] if task else "Tarea"
+    
+    # ELIMINAR TAREA DE LA BASE DE DATOS
+    # Esto llama al método delete() de la clase Task
+    success = task_manager.delete(task_id)
+    
+    if success:
+        # Mostrar notificación emergente de éxito
+        await query.answer(
+            f"🗑️ Tarea '{task_title}' eliminada",
+            show_alert=True  # Muestra un popup en lugar de una notificación pequeña
+        )
+        
+        # Mensaje con confirmación
+        message = """
+✅ <b>Tarea eliminada correctamente</b>
+
+¿Qué quieres hacer ahora?
+"""
+        
+        # Mostrar el menú de tareas
+        await query.edit_message_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_tasks_menu()
+        )
+    else:
+        # Si algo falló en la eliminación
+        await query.answer(
+            "❌ Error al eliminar la tarea",
+            show_alert=True
+        )
+        
+        # Si falla, volver a mostrar la tarea
+        if task:
+            await view_task(update, context)

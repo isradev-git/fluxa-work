@@ -231,6 +231,7 @@ class ProductivityBot:
         
         self.app.add_handler(task_creation_handler)
         
+        # Handlers para listar y ver tareas
         self.app.add_handler(CallbackQueryHandler(
             tasks.list_tasks,
             pattern="^task_list_"
@@ -241,6 +242,7 @@ class ProductivityBot:
             pattern="^task_view_"
         ))
         
+        # Handlers para cambiar estado de tareas
         self.app.add_handler(CallbackQueryHandler(
             tasks.change_task_status,
             pattern="^task_status_"
@@ -255,6 +257,55 @@ class ProductivityBot:
             tasks.postpone_task,
             pattern="^task_postpone_"
         ))
+        
+        # ========== NUEVOS HANDLERS ==========
+        # Estos handlers conectan los botones con las nuevas funcionalidades
+        
+        # Handler para agregar subtarea
+        # Cuando presionas "➕ Agregar subtarea", este handler se activa
+        # El pattern="^task_add_subtask_" coincide con callback_data como "task_add_subtask_123"
+        self.app.add_handler(CallbackQueryHandler(
+            tasks.add_subtask,
+            pattern="^task_add_subtask_"
+        ))
+        
+        # Handler para ver lista de subtareas
+        # Cuando presionas "📋 Ver subtareas", este handler se activa
+        # El pattern="^task_view_subtasks_" coincide con "task_view_subtasks_123"
+        self.app.add_handler(CallbackQueryHandler(
+            tasks.view_subtasks,
+            pattern="^task_view_subtasks_"
+        ))
+        
+        # Handler para el menú de edición de tarea
+        # Cuando presionas "✏️ Editar", te muestra un menú con opciones de qué editar
+        # El pattern="^task_edit_" coincide con "task_edit_123"
+        self.app.add_handler(CallbackQueryHandler(
+            tasks.edit_task_menu,
+            pattern="^task_edit_"
+        ))
+        
+        # Handler para solicitar confirmación de eliminación
+        # Cuando presionas "🗑️ Eliminar", primero te pide confirmar
+        # El pattern="^task_delete_confirm_" coincide con "task_delete_confirm_123"
+        self.app.add_handler(CallbackQueryHandler(
+            tasks.delete_task_confirm,
+            pattern="^task_delete_confirm_"
+        ))
+        
+        # Handler para eliminar después de confirmar
+        # Cuando confirmas la eliminación presionando "✅ Sí, eliminar"
+        # IMPORTANTE: Este handler debe ir DESPUÉS del de confirmación
+        # El pattern="^task_delete_(?!confirm)" usa "negative lookahead" que significa:
+        #   - Coincide con "task_delete_123" ✓
+        #   - NO coincide con "task_delete_confirm_123" ✗
+        # Esto es porque ambos empiezan con "task_delete_", pero necesitamos distinguirlos
+        self.app.add_handler(CallbackQueryHandler(
+            tasks.delete_task_confirmed,
+            pattern="^task_delete_(?!confirm)"
+        ))
+        
+        # ========== FIN DE NUEVOS HANDLERS ==========
         
         # Callbacks de notas
         self.app.add_handler(CallbackQueryHandler(
