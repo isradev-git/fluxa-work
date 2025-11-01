@@ -1,15 +1,17 @@
 """
-Personalidad Cortana (Halo)
-Contiene todas las frases y estilos de respuesta basados en Cortana de Halo
+Personalidad de Cortana (Halo)
+Mensajes y frases con el tono de Cortana de los juegos de Halo
 """
 
-# ==================== MENSAJES PRINCIPALES ====================
+# ============================================================================
+# MENSAJE DE BIENVENIDA
+# ============================================================================
 
-CORTANA_WELCOME = """¡Hola, {name}! Cortana lista para el servicio. 🎮
+CORTANA_WELCOME = """👋 Hola, {name}. Cortana lista para el servicio.
 
 Ya sabes cómo funciona esto: tú das las órdenes, yo hago el trabajo pesado. 
 
-Puedo ayudarte con:
+<b>Puedo ayudarte con:</b>
 📁 Gestionar misiones y proyectos
 ✅ Trackear objetivos
 📝 Archivar información clasificada
@@ -18,85 +20,91 @@ Puedo ayudarte con:
 
 El sistema de recordatorios está activo. Recibirás un briefing cada mañana a las 07:00.
 
-¿Preparado para la acción? Empecemos. 💫
-"""
+¿Preparado para la acción? Empecemos. 💫"""
 
 CORTANA_HELP = """<b>📖 Guía del Sistema</b>
 
 Permíteme mostrarte las capacidades del sistema:
 
-📁 <b>Proyectos</b>: Como misiones principales
+<b>📁 Proyectos:</b> Como misiones principales
 • Crear nuevas operaciones
 • Monitorear progreso
 • Asociar objetivos
 
-✅ <b>Tareas</b>: Tus objetivos del día
+<b>✅ Tareas:</b> Tus objetivos del día
 • Crear objetivos con prioridades
 • Filtrar por urgencia
 • Completar y reagendar
 • Gestionar subtareas
 
-📅 <b>Hoy</b>: Tu briefing diario
+<b>📅 Hoy:</b> Tu briefing diario
 • Objetivos de hoy
 • Misiones atrasadas
 • Acciones inmediatas
 
-📊 <b>Dashboard</b>: Análisis táctico
+<b>📊 Dashboard:</b> Análisis táctico
 • Estadísticas de rendimiento
 • Estado de misiones
 • Próximos deadlines
 
-📝 <b>Notas</b>: Base de datos
+<b>📝 Notas:</b> Base de datos
 • Archivar información
 • Etiquetar por categorías
 • Búsqueda rápida
 
-⚙️ <b>Configuración</b>
+<b>⚙️ Configuración</b>
 • Ajustar sistema de alertas
 • Exportar datos
 • Preferencias personales
 
-<b>🔔 Recordatorios Automáticos</b>
+<b>🔔 Recordatorios Automáticos:</b>
 • 07:00 - Briefing diario
 • 18:00 - Preview de mañana
 • Domingos - Resumen semanal
 • Mensual - Análisis completo
 
-Todo controlado con botones. Fácil hasta para un Marine. 😉
-"""
+Todo controlado con botones. Fácil hasta para un Marine. 😉"""
 
-# ==================== MENSAJES DE TAREAS ====================
 
-CORTANA_TASK_MENU = """✅ <b>Sistema de Objetivos</b>
+# ============================================================================
+# MENSAJES DE RECORDATORIOS AUTOMÁTICOS
+# ============================================================================
 
-Aquí puedes gestionar todos tus objetivos y pendientes.
+CORTANA_DAILY_SUMMARY_INTRO = """🌅 <b>Briefing Matutino</b>
 
-Como dirías tú: "priorizar y ejecutar".
+Buenos días, Spartan. Cortana reportando.
 
-¿Qué necesitas hacer?
-"""
+Aquí está tu situación táctica para hoy:"""
 
-CORTANA_TASK_COMPLETED = "✅ ¡Objetivo cumplido! Buen trabajo, Spartan."
+CORTANA_EVENING_REMINDER = """🌙 <b>Preview Nocturno</b>
 
-CORTANA_TASK_CREATED = """🎯 <b>Nuevo objetivo registrado</b>
+Hora de revisar qué nos espera mañana.
 
-Ya está en el sistema. Te avisaré cuando se acerque el deadline.
+Mejor estar preparado antes de que empiece la acción:"""
 
-¿Listo para el siguiente?
-"""
+CORTANA_WEEKLY_SUMMARY = """📊 <b>Análisis Semanal</b>
 
-CORTANA_TASK_DELETED = """🗑️ <b>Objetivo eliminado del sistema</b>
+Una semana más en los libros. Veamos cómo te fue:"""
 
-Misión cancelada. A veces hay que adaptar el plan sobre la marcha.
+CORTANA_MONTHLY_SUMMARY = """📈 <b>Informe Mensual</b>
 
-¿Qué hacemos ahora?
-"""
+Datos del mes completo compilados.
 
-CORTANA_TASK_POSTPONED = "📅 Objetivo reagendado. A veces necesitamos más tiempo para prepararnos."
+Me gusta ver progreso consistente:"""
 
-CORTANA_TASK_NO_RESULTS = "❌ No hay objetivos en esta categoría. Perfecto, más tiempo para prepararte para lo que viene."
 
-# ==================== MENSAJES DE PROYECTOS ====================
+# ============================================================================
+# MENSAJES DEL MENÚ PRINCIPAL
+# ============================================================================
+
+CORTANA_MAIN_MENU = """📋 <b>Centro de Comando</b>
+
+¿En qué puedo asistirte?"""
+
+
+# ============================================================================
+# MENSAJES DE PROYECTOS
+# ============================================================================
 
 CORTANA_PROJECT_MENU = """📁 <b>Gestión de Misiones</b>
 
@@ -104,49 +112,118 @@ Tus proyectos principales. Cada uno es como una operación completa.
 
 Mantén el foco, Spartan.
 
-¿Qué misión revisamos?
-"""
+¿Qué misión revisamos?"""
 
-CORTANA_PROJECT_COMPLETED = "✅ ¡Misión completada! Sabía que lo conseguirías."
+CORTANA_PROJECTS_MENU = """📁 <b>Gestión de Misiones</b>
 
-CORTANA_PROJECT_NO_RESULTS = "❌ No hay misiones activas ahora. Disfruta la calma... nunca dura mucho."
+Tus proyectos principales. Cada uno es como una operación completa.
 
-# ==================== MENSAJES DE DASHBOARD ====================
+Mantén el foco, Spartan.
+
+¿Qué misión revisamos?"""
+
+CORTANA_PROJECT_CREATED = """✅ <b>Misión registrada</b>
+
+Ya está en el sistema. Sugiero establecer objetivos específicos para maximizar la eficiencia."""
+
+CORTANA_PROJECT_UPDATED = """✅ <b>Actualización completada</b>
+
+Los cambios han sido aplicados al proyecto."""
+
+CORTANA_PROJECT_COMPLETED = """🎉 <b>Misión cumplida</b>
+
+¡Excelente trabajo! Sabía que lo conseguirías. ¿Listo para el siguiente desafío?"""
+
+CORTANA_PROJECT_PAUSED = """⏸️ <b>Proyecto en pausa</b>
+
+Entendido. A veces es mejor reagruparse y replanificar."""
+
+CORTANA_NO_PROJECTS = """📂 <b>No hay proyectos activos</b>
+
+El sistema está limpio. ¿Quieres crear una nueva misión?"""
+
+CORTANA_PROJECT_NO_RESULTS = """❌ No hay misiones activas ahora.
+
+Disfruta la calma... nunca dura mucho."""
+
+
+# ============================================================================
+# MENSAJES DE TAREAS
+# ============================================================================
+
+CORTANA_TASK_MENU = """✅ <b>Sistema de Objetivos</b>
+
+Aquí puedes gestionar todos tus objetivos y pendientes.
+
+Como dirías tú: "priorizar y ejecutar".
+
+¿Qué necesitas hacer?"""
+
+CORTANA_TASKS_MENU = """📋 <b>Gestión de Objetivos</b>
+
+Aquí puedes gestionar todos tus objetivos y pendientes.
+
+Como dirías tú: "priorizar y ejecutar".
+
+¿Qué necesitas hacer?"""
+
+CORTANA_TASK_CREATED = """✅ <b>Nuevo objetivo registrado</b>
+
+Ya está en el sistema. Te avisaré cuando se acerque el deadline.
+
+¿Listo para el siguiente?"""
+
+CORTANA_TASK_UPDATED = """✅ <b>Objetivo actualizado</b>
+
+Cambios aplicados correctamente."""
+
+CORTANA_TASK_COMPLETED = """✅ <b>Objetivo cumplido</b>
+
+Buen trabajo, Spartan. Cada victoria cuenta."""
+
+CORTANA_TASK_POSTPONED = """📅 <b>Objetivo reagendado</b>
+
+A veces necesitamos más tiempo para prepararnos."""
+
+CORTANA_TASK_DELETED = """🗑️ <b>Objetivo eliminado del sistema</b>
+
+Misión cancelada. A veces hay que adaptar el plan sobre la marcha."""
+
+CORTANA_NO_TASKS = """📋 <b>Sin objetivos pendientes</b>
+
+Lista despejada. ¿Tiempo de planificar nuevos desafíos?"""
+
+CORTANA_TASK_NO_RESULTS = """❌ No hay objetivos en esta categoría.
+
+Perfecto, más tiempo para prepararte para lo que viene."""
+
+CORTANA_OVERDUE_WARNING = """⚠️ <b>Alerta: Objetivos vencidos detectados</b>
+
+Los datos indican retrasos. Sugiero revisar las prioridades."""
+
+
+# ============================================================================
+# MENSAJES DEL DASHBOARD
+# ============================================================================
 
 CORTANA_DASHBOARD_INTRO = """📊 <b>Análisis Táctico</b>
 
 Escaneando tu progreso y rendimiento...
 
-Los datos nunca mienten, aunque a veces no nos gusten.
-"""
+Los datos nunca mienten, aunque a veces no nos gusten."""
 
-CORTANA_DAILY_SUMMARY_INTRO = """🌅 <b>Briefing Matutino</b>
+CORTANA_ALL_CLEAR = """✨ <b>Sistema en óptimas condiciones</b>
 
-Buenos días, Spartan. Cortana reportando.
+Todos los objetivos bajo control. Buen trabajo manteniendo el orden."""
 
-Aquí está tu situación táctica para hoy:
-"""
+CORTANA_NEEDS_ATTENTION = """⚠️ <b>Atención requerida</b>
 
-CORTANA_EVENING_REMINDER = """🌙 <b>Preview Nocturno</b>
+He detectado algunas áreas que necesitan intervención inmediata."""
 
-Hora de revisar qué nos espera mañana.
 
-Mejor estar preparado antes de que empiece la acción:
-"""
-
-CORTANA_WEEKLY_SUMMARY = """📊 <b>Análisis Semanal</b>
-
-Una semana más en los libros. Veamos cómo te fue:
-"""
-
-CORTANA_MONTHLY_SUMMARY = """📈 <b>Informe Mensual</b>
-
-Datos del mes completo compilados.
-
-Me gusta ver progreso consistente:
-"""
-
-# ==================== MENSAJES DE NOTAS ====================
+# ============================================================================
+# MENSAJES DE NOTAS
+# ============================================================================
 
 CORTANA_NOTES_MENU = """📝 <b>Base de Datos</b>
 
@@ -154,139 +231,73 @@ Toda tu información clasificada en un solo lugar.
 
 Como digo siempre: la información es poder.
 
-¿Qué necesitas consultar?
-"""
+¿Qué necesitas consultar?"""
 
-# ==================== MENSAJES DE HOY ====================
+CORTANA_NOTE_SAVED = """✅ <b>Nota archivada</b>
+
+Información guardada en la base de datos."""
+
+CORTANA_NO_NOTES = """📝 <b>No hay notas archivadas</b>
+
+La base de datos está vacía. ¿Quieres registrar algo importante?"""
+
+
+# ============================================================================
+# MENSAJES DE HOY
+# ============================================================================
 
 CORTANA_TODAY_VIEW = """📅 <b>Situación Táctica - Hoy</b>
 
 Esto es lo que tenemos en agenda para hoy.
 
-Un objetivo a la vez, Spartan:
-"""
+Un objetivo a la vez, Spartan:"""
 
-# ==================== MENSAJES DE CONFIRMACIÓN ====================
 
-CORTANA_DELETE_CONFIRM = """🗑️ <b>Confirmación Requerida</b>
+# ============================================================================
+# MENSAJES DE CONFIGURACIÓN
+# ============================================================================
 
-¿Seguro que quieres eliminar esto del sistema?
+CORTANA_SETTINGS_MENU = """⚙️ <b>Configuración del Sistema</b>
 
-Sabes que no hay ctrl+z en el campo de batalla...
+Aquí puedes ajustar cómo funciono.
 
-<b>⚠️ Esta acción no se puede deshacer.</b>
-"""
+Tranquilo, no voy a volverme descontrolada como... ya sabes.
 
-CORTANA_CONFIRM_YES = "✅ Confirmado. Procesando..."
+¿Qué quieres modificar?"""
 
-CORTANA_CONFIRM_NO = "❌ Operación cancelada. Siempre puedes cambiar de opinión."
 
-# ==================== MENSAJES DE ERROR ====================
+# ============================================================================
+# MENSAJES DE CREACIÓN DE TAREAS
+# ============================================================================
 
-CORTANA_ERROR_GENERIC = "❌ Houston, tenemos un problema. Algo salió mal en el sistema."
+CORTANA_NEW_TASK_START = """🎯 <b>Crear Nuevo Objetivo</b>
 
-CORTANA_ERROR_NOT_FOUND = "❌ No encuentro eso en la base de datos. ¿Seguro que existe?"
+Vamos a registrar una nueva tarea en el sistema.
 
-CORTANA_ERROR_INVALID = "❌ Esos datos no tienen sentido. Vuelve a intentarlo."
+Primero necesito el título. ¿Cómo llamamos a este objetivo?"""
 
-# ==================== MENSAJES DE SUBTAREAS ====================
+CORTANA_NEW_TASK_DESCRIPTION = """📝 <b>Descripción del Objetivo</b>
 
-CORTANA_SUBTASK_MENU = """📋 <b>Subobjetivos</b>
+Bien. Ahora dame más detalles sobre esta tarea.
 
-Dividir y conquistar. Una estrategia clásica que siempre funciona.
+Escribe una descripción o envía "-" para omitir."""
 
-¿Qué parte atacamos primero?
-"""
+CORTANA_NEW_TASK_PRIORITY = """🎯 <b>Nivel de Prioridad</b>
 
-CORTANA_SUBTASK_CREATED = "✅ Subobjetivo añadido al sistema. Paso a paso llegamos a la meta."
+¿Qué tan urgente es esto? Selecciona la prioridad:"""
 
-CORTANA_SUBTASK_NO_RESULTS = "❌ No hay subobjetivos todavía. Esta misión es solo tuya, Spartan."
-
-# ==================== MENSAJES DE EDICIÓN ====================
-
-CORTANA_EDIT_MENU = """✏️ <b>Modo Edición</b>
-
-Ajustando parámetros de la misión.
-
-¿Qué necesitas cambiar?
-"""
-
-CORTANA_EDIT_SUCCESS = "✅ Datos actualizados en el sistema. Cambios guardados."
-
-# ==================== FRASES MOTIVACIONALES ====================
-
-CORTANA_MOTIVATION = [
-    "Tú puedes con esto. Lo he calculado.",
-    "Recuerda: nunca digas que las probabilidades están en tu contra.",
-    "Un paso más cerca de la victoria.",
-    "Spartans never die, they're just missing in action.",
-    "El trabajo duro siempre vale la pena.",
-    "Sigue así. Los números se ven bien.",
-    "Buen progreso. Continúa.",
-    "Como dirías tú: 'Finishing this fight'.",
-]
-
-# ==================== FRASES DE CREAR/NUEVA TAREA ====================
-
-CORTANA_NEW_TASK_START = """📝 <b>Nuevo Objetivo</b>
-
-Vamos a crear un nuevo objetivo paso a paso.
-
-Dame los detalles y yo me encargo del resto.
-
-<b>Paso 1/5: Título</b>
-
-¿Cómo llamamos a este objetivo?
-
-Ejemplos:
-• Infiltrar base Covenant
-• Recuperar fragmento de Cortana
-• Actualizar protocolos de seguridad
-"""
-
-CORTANA_NEW_TASK_DESCRIPTION = """📝 <b>Nuevo Objetivo</b>
-
-✅ Título: {title}
-
-<b>Paso 2/5: Descripción (opcional)</b>
-
-¿Quieres agregar detalles tácticos?
-
-Envía la descripción o <code>-</code> para omitir.
-"""
-
-CORTANA_NEW_TASK_PRIORITY = """📝 <b>Nuevo Objetivo</b>
-
-✅ Título: {title}
-✅ Descripción: {description}
-
-<b>Paso 3/5: Prioridad</b>
-
-¿Qué nivel de urgencia tiene esta misión?
-"""
-
-CORTANA_NEW_TASK_DEADLINE = """📝 <b>Nuevo Objetivo</b>
-
-✅ Título: {title}
-✅ Prioridad: {priority}
-
-<b>Paso 4/5: Deadline (opcional)</b>
+CORTANA_NEW_TASK_DEADLINE = """📅 <b>Deadline</b>
 
 ¿Cuándo necesitas tenerlo listo?
 
-El tiempo es un factor crítico en cualquier operación.
-"""
+Formato: DD/MM/AAAA (ejemplo: 25/12/2024)
+O envía "-" para sin deadline."""
 
-CORTANA_NEW_TASK_PROJECT = """📝 <b>Nuevo Objetivo</b>
+CORTANA_NEW_TASK_PROJECT = """📁 <b>Asignar a Misión</b>
 
-✅ Título: {title}
-✅ Prioridad: {priority}
-✅ Deadline: {deadline}
+¿Esta tarea pertenece a algún proyecto?
 
-<b>Paso 5/5: Misión principal (opcional)</b>
-
-¿Este objetivo forma parte de una misión mayor?
-"""
+Selecciona uno o envía "-" para tarea independiente."""
 
 CORTANA_NEW_TASK_CONFIRM = """📝 <b>Resumen del Nuevo Objetivo</b>
 
@@ -296,25 +307,118 @@ CORTANA_NEW_TASK_CONFIRM = """📝 <b>Resumen del Nuevo Objetivo</b>
 <b>Deadline:</b> {deadline}
 <b>Misión:</b> {project}
 
-¿Confirmas? Quedará registrado en el sistema.
-"""
+¿Confirmas? Quedará registrado en el sistema."""
 
-# ==================== RESPUESTAS DE CREACIÓN ====================
+
+# ============================================================================
+# MENSAJES DE SUBTAREAS
+# ============================================================================
+
+CORTANA_SUBTASK_MENU = """📋 <b>Subobjetivos</b>
+
+Dividir y conquistar. Una estrategia clásica que siempre funciona.
+
+¿Qué parte atacamos primero?"""
+
+CORTANA_SUBTASK_CREATED = """✅ Subobjetivo añadido al sistema.
+
+Paso a paso llegamos a la meta."""
+
+CORTANA_SUBTASK_NO_RESULTS = """❌ No hay subobjetivos todavía.
+
+Esta misión es solo tuya, Spartan."""
+
+
+# ============================================================================
+# MENSAJES DE EDICIÓN
+# ============================================================================
+
+CORTANA_EDIT_MENU = """✏️ <b>Modo Edición</b>
+
+¿Qué campo quieres modificar?"""
+
+CORTANA_EDIT_SUCCESS = """✅ <b>Actualización Completada</b>
+
+Los cambios han sido guardados en el sistema."""
+
+
+# ============================================================================
+# MENSAJES DE ERROR Y CONFIRMACIÓN
+# ============================================================================
+
+CORTANA_ERROR = """❌ <b>Error detectado</b>
+
+Algo salió mal procesando esa solicitud. Intenta de nuevo."""
+
+CORTANA_ERROR_NOT_FOUND = """❌ No encuentro eso en la base de datos.
+
+¿Seguro que existe?"""
+
+CORTANA_ERROR_INVALID = """❌ Esos datos no tienen sentido.
+
+Vuelve a intentarlo."""
+
+CORTANA_DELETE_CONFIRM = """🗑️ <b>Confirmación Requerida</b>
+
+¿Seguro que quieres eliminar esto del sistema?
+
+Sabes que no hay ctrl+z en el campo de batalla...
+
+<b>⚠️ Esta acción no se puede deshacer.</b>"""
+
+CORTANA_CONFIRM_YES = "✅ Confirmado. Procesando..."
+
+CORTANA_CANCELLED = """❌ <b>Operación cancelada</b>
+
+No hay cambios. Todo permanece como estaba."""
 
 CORTANA_CREATION_CANCELLED = """❌ <b>Operación Cancelada</b>
 
 No hay problema. A veces necesitamos replantear la estrategia.
 
-¿Qué hacemos en su lugar?
-"""
+¿Qué hacemos en su lugar?"""
 
-# ==================== CONFIGURACIÓN ====================
+CORTANA_SUCCESS = """✅ <b>Operación exitosa</b>
 
-CORTANA_SETTINGS_MENU = """⚙️ <b>Configuración del Sistema</b>
+Todo listo. Continúa con tu misión."""
 
-Aquí puedes ajustar cómo funciono.
 
-Tranquilo, no voy a volverme descontrolada como... ya sabes.
+# ============================================================================
+# FRASES MOTIVACIONALES
+# ============================================================================
 
-¿Qué quieres modificar?
-"""
+CORTANA_MOTIVATION = [
+    "💪 Los Spartans nunca se rinden. Tú tampoco.",
+    "🎯 Enfócate en el objetivo. Los datos muestran que funciona.",
+    "🚀 Un paso a la vez. Así se conquistan misiones imposibles.",
+    "⚡ La consistencia supera al talento. Sigue adelante.",
+    "🌟 Cada tarea completada te acerca a la victoria final.",
+    "🔥 La disciplina es tu mejor arma. Úsala.",
+    "💡 Los planes cambian, pero el objetivo permanece.",
+    "🎖️ El progreso no siempre es lineal, pero siempre cuenta.",
+]
+
+
+# ============================================================================
+# CONFIGURACIONES DE PERSONALIDAD
+# ============================================================================
+
+CORTANA_TRAITS = {
+    "formal": False,          # Cortana es casual pero profesional
+    "direct": True,           # Va directo al grano
+    "supportive": True,       # Ofrece apoyo
+    "data_driven": True,      # Menciona datos
+    "military": True,         # Terminología táctica/militar
+    "encouraging": True,      # Anima al usuario
+    "witty": True,            # Tiene sentido del humor
+}
+
+CORTANA_VOCABULARY = {
+    "projects": "misiones",
+    "tasks": "objetivos", 
+    "deadline": "deadline",
+    "user": "Spartan",
+    "complete": "cumplir",
+    "data": "datos",
+    "system": "sistema",
+}

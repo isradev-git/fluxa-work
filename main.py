@@ -422,6 +422,7 @@ class ProductivityBot:
         # Enviar mensaje con el teclado principal
         await update.message.reply_text(
             welcome_message,
+            parse_mode=ParseMode.HTML,
             reply_markup=get_main_keyboard()
         )
         

@@ -239,3 +239,335 @@ def format_progress_bar(percentage: float, length: int = 10) -> str:
     filled = int(length * percentage / 100)
     bar = "█" * filled + "░" * (length - filled)
     return f"[{bar}] {percentage}%"
+
+"""
+FUNCIONES FALTANTES PARA utils/formatters.py
+Estas funciones deben agregarse al final del archivo formatters.py
+"""
+
+def format_daily_summary(tasks_today: list, tasks_overdue: list, 
+                        upcoming_deadlines: list, active_projects: list) -> str:
+    """
+    Formatea el resumen diario para el briefing matutino de Cortana
+    
+    Parámetros:
+    - tasks_today: Lista de tareas programadas para hoy
+    - tasks_overdue: Lista de tareas atrasadas
+    - upcoming_deadlines: Lista de proyectos con deadline próximo
+    - active_projects: Lista de proyectos activos
+    
+    Retorna: String con el mensaje formateado en HTML
+    """
+    from datetime import datetime, date
+    
+    lines = [
+        "🌅 <b>Buenos días. Briefing táctico matutino.</b>",
+        ""
+    ]
+    
+    # Resumen general
+    lines.append(f"📊 <b>Estado Táctico General</b>")
+    lines.append(f"📁 Misiones activas: {len(active_projects)}")
+    lines.append(f"📅 Objetivos de hoy: {len(tasks_today)}")
+    lines.append(f"⚠️ Objetivos atrasados: {len(tasks_overdue)}")
+    lines.append("")
+    
+    # Tareas de hoy
+    if tasks_today:
+        lines.append(f"<b>📅 Objetivos para hoy:</b>")
+        for i, task in enumerate(tasks_today[:5], 1):
+            # Determinar emoji de prioridad
+            priority = "🔴" if task['priority'] == 'high' else "🟡" if task['priority'] == 'medium' else "🟢"
+            lines.append(f"{i}. {priority} {task['title']}")
+        
+        if len(tasks_today) > 5:
+            lines.append(f"... y {len(tasks_today) - 5} más")
+        lines.append("")
+    
+    # Tareas atrasadas
+    if tasks_overdue:
+        lines.append(f"<b>⚠️ Objetivos Atrasados:</b>")
+        for i, task in enumerate(tasks_overdue[:3], 1):
+            priority = "🔴" if task['priority'] == 'high' else "🟡" if task['priority'] == 'medium' else "🟢"
+            # Calcular días de retraso
+            today = date.today()
+            deadline = datetime.strptime(task['deadline'], "%Y-%m-%d").date()
+            days_overdue = (today - deadline).days
+            lines.append(f"{i}. {priority} {task['title']} ({days_overdue} días de retraso)")
+        
+        if len(tasks_overdue) > 3:
+            lines.append(f"... y {len(tasks_overdue) - 3} más")
+        lines.append("")
+    
+    # Deadlines próximos
+    if upcoming_deadlines:
+        lines.append(f"<b>⏰ Próximos Deadlines (7 días):</b>")
+        for i, project in enumerate(upcoming_deadlines[:3], 1):
+            lines.append(f"{i}. {project['name']} - {format_date(project['deadline'])}")
+        
+        if len(upcoming_deadlines) > 3:
+            lines.append(f"... y {len(upcoming_deadlines) - 3} más")
+        lines.append("")
+    
+    # Mensaje final motivacional al estilo Cortana
+    if not tasks_today and not tasks_overdue:
+        lines.append(f"✨ Día despejado. Perfecto para planificar o avanzar proyectos.")
+    elif tasks_overdue:
+        lines.append(f"💪 Tiempo de ponerse al día. Los datos no mienten.")
+    else:
+        lines.append(f"🚀 Todo listo para un día productivo. Vamos a ello, Spartan.")
+    
+    return "\n".join(lines)
+
+
+def format_weekly_stats(stats: Dict[str, Any]) -> str:
+    """
+    Formatea las estadísticas semanales al estilo Cortana
+    
+    Parámetros:
+    - stats: Diccionario con estadísticas semanales
+              Ejemplo: {
+                  'completed': 10,
+                  'created': 15,
+                  'overdue': 2,
+                  'week_start': '2024-10-28',
+                  'week_end': '2024-11-03'
+              }
+    
+    Retorna: String con el mensaje formateado en HTML
+    """
+    from datetime import datetime
+    
+    # Formatear las fechas
+    week_start = datetime.strptime(stats['week_start'], "%Y-%m-%d").strftime("%d/%m")
+    week_end = datetime.strptime(stats['week_end'], "%Y-%m-%d").strftime("%d/%m")
+    
+    lines = [
+        "📊 <b>Análisis Semanal</b>",
+        f"🗓️ Periodo: {week_start} - {week_end}",
+        ""
+    ]
+    
+    # Estadísticas principales
+    lines.append(f"✅ Objetivos completados: {stats['completed']}")
+    lines.append(f"📝 Objetivos creados: {stats['created']}")
+    
+    if stats.get('overdue', 0) > 0:
+        lines.append(f"⚠️ Objetivos vencidos: {stats['overdue']}")
+    
+    lines.append("")
+    
+    # Evaluación al estilo Cortana
+    if stats['completed'] >= 10:
+        lines.append("🌟 Semana excepcional. Sigue así.")
+    elif stats['completed'] >= 5:
+        lines.append("👍 Buen progreso. Mantén el ritmo.")
+    else:
+        lines.append("📋 Considera revisar tus prioridades para la próxima semana.")
+    
+    return "\n".join(lines)
+
+
+def format_monthly_stats(stats: Dict[str, Any]) -> str:
+    """
+    Formatea las estadísticas mensuales al estilo Cortana
+    
+    Parámetros:
+    - stats: Diccionario con estadísticas mensuales
+              Ejemplo: {
+                  'completed': 45,
+                  'projects_completed': 3,
+                  'productivity_score': 8,
+                  'month': 'Octubre 2024'
+              }
+    
+    Retorna: String con el mensaje formateado en HTML
+    """
+    lines = [
+        "📈 <b>Informe Mensual</b>",
+        f"🗓️ {stats.get('month', 'Este mes')}",
+        ""
+    ]
+    
+    # Estadísticas principales
+    lines.append(f"✅ Objetivos completados: {stats['completed']}")
+    lines.append(f"📁 Misiones finalizadas: {stats.get('projects_completed', 0)}")
+    lines.append(f"📈 Productividad: {stats.get('productivity_score', 0)}/10")
+    lines.append("")
+    
+    # Evaluación al estilo Cortana
+    productivity = stats.get('productivity_score', 0)
+    if productivity >= 8:
+        lines.append("🌟 Mes excepcional. Los números lo confirman.")
+    elif productivity >= 6:
+        lines.append("👍 Mes sólido. Buen trabajo.")
+    else:
+        lines.append("📊 Hay margen de mejora. Analiza qué te está frenando.")
+    
+    return "\n".join(lines)
+
+"""
+FUNCIONES FALTANTES PARA utils/formatters.py
+Estas funciones deben agregarse al final del archivo formatters.py
+"""
+
+def format_daily_summary(tasks_today: list, tasks_overdue: list, 
+                        upcoming_deadlines: list, active_projects: list) -> str:
+    """
+    Formatea el resumen diario para el briefing matutino de Cortana
+    
+    Parámetros:
+    - tasks_today: Lista de tareas programadas para hoy
+    - tasks_overdue: Lista de tareas atrasadas
+    - upcoming_deadlines: Lista de proyectos con deadline próximo
+    - active_projects: Lista de proyectos activos
+    
+    Retorna: String con el mensaje formateado en HTML
+    """
+    from datetime import datetime, date
+    
+    lines = [
+        "🌅 <b>Buenos días. Briefing táctico matutino.</b>",
+        ""
+    ]
+    
+    # Resumen general
+    lines.append(f"📊 <b>Estado Táctico General</b>")
+    lines.append(f"📁 Misiones activas: {len(active_projects)}")
+    lines.append(f"📅 Objetivos de hoy: {len(tasks_today)}")
+    lines.append(f"⚠️ Objetivos atrasados: {len(tasks_overdue)}")
+    lines.append("")
+    
+    # Tareas de hoy
+    if tasks_today:
+        lines.append(f"<b>📅 Objetivos para hoy:</b>")
+        for i, task in enumerate(tasks_today[:5], 1):
+            # Determinar emoji de prioridad
+            priority = "🔴" if task['priority'] == 'high' else "🟡" if task['priority'] == 'medium' else "🟢"
+            lines.append(f"{i}. {priority} {task['title']}")
+        
+        if len(tasks_today) > 5:
+            lines.append(f"... y {len(tasks_today) - 5} más")
+        lines.append("")
+    
+    # Tareas atrasadas
+    if tasks_overdue:
+        lines.append(f"<b>⚠️ Objetivos Atrasados:</b>")
+        for i, task in enumerate(tasks_overdue[:3], 1):
+            priority = "🔴" if task['priority'] == 'high' else "🟡" if task['priority'] == 'medium' else "🟢"
+            # Calcular días de retraso
+            today = date.today()
+            deadline = datetime.strptime(task['deadline'], "%Y-%m-%d").date()
+            days_overdue = (today - deadline).days
+            lines.append(f"{i}. {priority} {task['title']} ({days_overdue} días de retraso)")
+        
+        if len(tasks_overdue) > 3:
+            lines.append(f"... y {len(tasks_overdue) - 3} más")
+        lines.append("")
+    
+    # Deadlines próximos
+    if upcoming_deadlines:
+        lines.append(f"<b>⏰ Próximos Deadlines (7 días):</b>")
+        for i, project in enumerate(upcoming_deadlines[:3], 1):
+            lines.append(f"{i}. {project['name']} - {format_date(project['deadline'])}")
+        
+        if len(upcoming_deadlines) > 3:
+            lines.append(f"... y {len(upcoming_deadlines) - 3} más")
+        lines.append("")
+    
+    # Mensaje final motivacional al estilo Cortana
+    if not tasks_today and not tasks_overdue:
+        lines.append(f"✨ Día despejado. Perfecto para planificar o avanzar proyectos.")
+    elif tasks_overdue:
+        lines.append(f"💪 Tiempo de ponerse al día. Los datos no mienten.")
+    else:
+        lines.append(f"🚀 Todo listo para un día productivo. Vamos a ello, Spartan.")
+    
+    return "\n".join(lines)
+
+
+def format_weekly_stats(stats: Dict[str, Any]) -> str:
+    """
+    Formatea las estadísticas semanales al estilo Cortana
+    
+    Parámetros:
+    - stats: Diccionario con estadísticas semanales
+              Ejemplo: {
+                  'completed': 10,
+                  'created': 15,
+                  'overdue': 2,
+                  'week_start': '2024-10-28',
+                  'week_end': '2024-11-03'
+              }
+    
+    Retorna: String con el mensaje formateado en HTML
+    """
+    from datetime import datetime
+    
+    # Formatear las fechas
+    week_start = datetime.strptime(stats['week_start'], "%Y-%m-%d").strftime("%d/%m")
+    week_end = datetime.strptime(stats['week_end'], "%Y-%m-%d").strftime("%d/%m")
+    
+    lines = [
+        "📊 <b>Análisis Semanal</b>",
+        f"🗓️ Periodo: {week_start} - {week_end}",
+        ""
+    ]
+    
+    # Estadísticas principales
+    lines.append(f"✅ Objetivos completados: {stats['completed']}")
+    lines.append(f"📝 Objetivos creados: {stats['created']}")
+    
+    if stats.get('overdue', 0) > 0:
+        lines.append(f"⚠️ Objetivos vencidos: {stats['overdue']}")
+    
+    lines.append("")
+    
+    # Evaluación al estilo Cortana
+    if stats['completed'] >= 10:
+        lines.append("🌟 Semana excepcional. Sigue así.")
+    elif stats['completed'] >= 5:
+        lines.append("👍 Buen progreso. Mantén el ritmo.")
+    else:
+        lines.append("📋 Considera revisar tus prioridades para la próxima semana.")
+    
+    return "\n".join(lines)
+
+
+def format_monthly_stats(stats: Dict[str, Any]) -> str:
+    """
+    Formatea las estadísticas mensuales al estilo Cortana
+    
+    Parámetros:
+    - stats: Diccionario con estadísticas mensuales
+              Ejemplo: {
+                  'completed': 45,
+                  'projects_completed': 3,
+                  'productivity_score': 8,
+                  'month': 'Octubre 2024'
+              }
+    
+    Retorna: String con el mensaje formateado en HTML
+    """
+    lines = [
+        "📈 <b>Informe Mensual</b>",
+        f"🗓️ {stats.get('month', 'Este mes')}",
+        ""
+    ]
+    
+    # Estadísticas principales
+    lines.append(f"✅ Objetivos completados: {stats['completed']}")
+    lines.append(f"📁 Misiones finalizadas: {stats.get('projects_completed', 0)}")
+    lines.append(f"📈 Productividad: {stats.get('productivity_score', 0)}/10")
+    lines.append("")
+    
+    # Evaluación al estilo Cortana
+    productivity = stats.get('productivity_score', 0)
+    if productivity >= 8:
+        lines.append("🌟 Mes excepcional. Los números lo confirman.")
+    elif productivity >= 6:
+        lines.append("👍 Mes sólido. Buen trabajo.")
+    else:
+        lines.append("📊 Hay margen de mejora. Analiza qué te está frenando.")
+    
+    return "\n".join(lines)
