@@ -1,15 +1,27 @@
 """
-Conversation handlers para crear y editar tareas
+Conversation handlers para crear y editar tareas con personalidad Cortana
 Maneja diálogos multi-paso para crear nuevas tareas, subtareas y edición
 """
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.constants import ParseMode
 from datetime import datetime, date, timedelta
+import random
 
 import config
 from database.models import DatabaseManager, Task, Project
 from utils.keyboards import get_tasks_menu, get_priority_keyboard, get_cancel_keyboard
+from cortana_personality import (
+    CORTANA_NEW_TASK_START,
+    CORTANA_NEW_TASK_DESCRIPTION,
+    CORTANA_NEW_TASK_PRIORITY,
+    CORTANA_NEW_TASK_DEADLINE,
+    CORTANA_NEW_TASK_PROJECT,
+    CORTANA_NEW_TASK_CONFIRM,
+    CORTANA_TASK_CREATED,
+    CORTANA_CREATION_CANCELLED,
+    CORTANA_MOTIVATION
+)
 
 # Inicializar gestores
 db_manager = DatabaseManager()
@@ -38,23 +50,11 @@ async def create_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     context.user_data['new_task'] = {}
     
-    message = """
-📝 <b>Nueva Tarea</b>
-
-Vamos a crear una nueva tarea paso a paso.
-
-<b>Paso 1/5: Título</b>
-
-¿Cuál es el título de la tarea?
-
-Ejemplo: "Implementar API de pagos"
-"""
-    
     keyboard = [[InlineKeyboardButton("❌ Cancelar", callback_data="task_create_cancel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(
-        message,
+        CORTANA_NEW_TASK_START,
         parse_mode=ParseMode.HTML,
         reply_markup=reply_markup
     )
@@ -69,23 +69,13 @@ async def task_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     if len(title) > config.MAX_TASK_NAME_LENGTH:
         await update.message.reply_text(
             f"❌ El título es muy largo. Máximo {config.MAX_TASK_NAME_LENGTH} caracteres.\n\n"
-            "Por favor, envía un título más corto:"
+            "Envía un título más corto:"
         )
         return TASK_TITLE
     
     context.user_data['new_task']['title'] = title
     
-    message = f"""
-📝 <b>Nueva Tarea</b>
-
-✅ Título: {title}
-
-<b>Paso 2/5: Descripción (opcional)</b>
-
-¿Quieres agregar una descripción?
-
-Envía la descripción o escribe <code>-</code> para omitir.
-"""
+    message = CORTANA_NEW_TASK_DESCRIPTION.format(title=title)
     
     keyboard = [[InlineKeyboardButton("⏭️ Omitir", callback_data="task_skip_description")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -114,17 +104,12 @@ async def task_description_received(update: Update, context: ContextTypes.DEFAUL
     context.user_data['new_task']['description'] = description
     
     title = context.user_data['new_task']['title']
+    desc_text = description if description else "Sin detalles tácticos"
     
-    message = f"""
-📝 <b>Nueva Tarea</b>
-
-✅ Título: {title}
-✅ Descripción: {description if description else "Sin descripción"}
-
-<b>Paso 3/5: Prioridad</b>
-
-¿Qué prioridad tiene esta tarea?
-"""
+    message = CORTANA_NEW_TASK_PRIORITY.format(
+        title=title,
+        description=desc_text
+    )
     
     keyboard = [
         [InlineKeyboardButton("🔴 Alta", callback_data="task_priority_high")],
@@ -160,27 +145,17 @@ async def task_priority_received(update: Update, context: ContextTypes.DEFAULT_T
     title = context.user_data['new_task']['title']
     priority_text = config.PRIORITY_LEVELS.get(priority, priority)
     
-    message = f"""
-📝 <b>Nueva Tarea</b>
-
-✅ Título: {title}
-✅ Prioridad: {priority_text}
-
-<b>Paso 4/5: Fecha límite (opcional)</b>
-
-¿Cuándo debe estar lista esta tarea?
-
-Puedes:
-• Escribir una fecha: YYYY-MM-DD
-• Usar atajos rápidos
-"""
+    message = CORTANA_NEW_TASK_DEADLINE.format(
+        title=title,
+        priority=priority_text
+    )
     
     keyboard = [
         [InlineKeyboardButton("📅 Hoy", callback_data="task_deadline_today")],
         [InlineKeyboardButton("📅 Mañana", callback_data="task_deadline_tomorrow")],
         [InlineKeyboardButton("📅 En 3 días", callback_data="task_deadline_3")],
         [InlineKeyboardButton("📅 En 1 semana", callback_data="task_deadline_7")],
-        [InlineKeyboardButton("⏭️ Sin fecha", callback_data="task_deadline_none")]
+        [InlineKeyboardButton("⏭️ Sin deadline", callback_data="task_deadline_none")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -231,22 +206,15 @@ async def task_deadline_received(update: Update, context: ContextTypes.DEFAULT_T
     
     title = context.user_data['new_task']['title']
     priority_text = config.PRIORITY_LEVELS.get(context.user_data['new_task']['priority'], "Media")
-    deadline_text = deadline if deadline else "Sin fecha límite"
+    deadline_text = deadline if deadline else "Sin deadline"
     
-    # Obtener proyectos activos
     projects = project_manager.get_all(status='active')
     
-    message = f"""
-📝 <b>Nueva Tarea</b>
-
-✅ Título: {title}
-✅ Prioridad: {priority_text}
-✅ Fecha límite: {deadline_text}
-
-<b>Paso 5/5: Proyecto (opcional)</b>
-
-¿A qué proyecto pertenece esta tarea?
-"""
+    message = CORTANA_NEW_TASK_PROJECT.format(
+        title=title,
+        priority=priority_text,
+        deadline=deadline_text
+    )
     
     keyboard = []
     
@@ -257,7 +225,7 @@ async def task_deadline_received(update: Update, context: ContextTypes.DEFAULT_T
                 callback_data=f"task_project_{project['id']}"
             )])
     
-    keyboard.append([InlineKeyboardButton("⏭️ Sin proyecto", callback_data="task_project_none")])
+    keyboard.append([InlineKeyboardButton("⏭️ Sin misión asociada", callback_data="task_project_none")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -292,30 +260,25 @@ async def task_project_received(update: Update, context: ContextTypes.DEFAULT_TY
     
     context.user_data['new_task']['project_id'] = project_id
     
-    # Mostrar resumen para confirmar
     task_data = context.user_data['new_task']
     
-    project_name = "Sin proyecto"
+    project_name = "Sin misión asociada"
     if project_id:
         project = project_manager.get_by_id(project_id)
         if project:
             project_name = project['name']
     
-    message = f"""
-📝 <b>Resumen de la Nueva Tarea</b>
-
-<b>Título:</b> {task_data['title']}
-<b>Descripción:</b> {task_data.get('description', 'Sin descripción')}
-<b>Prioridad:</b> {config.PRIORITY_LEVELS.get(task_data['priority'], 'Media')}
-<b>Fecha límite:</b> {task_data.get('deadline', 'Sin fecha')}
-<b>Proyecto:</b> {project_name}
-
-¿Crear esta tarea?
-"""
+    message = CORTANA_NEW_TASK_CONFIRM.format(
+        title=task_data['title'],
+        description=task_data.get('description', 'Sin detalles'),
+        priority=config.PRIORITY_LEVELS.get(task_data['priority'], 'Media'),
+        deadline=task_data.get('deadline', 'Sin deadline'),
+        project=project_name
+    )
     
     keyboard = [
         [
-            InlineKeyboardButton("✅ Crear tarea", callback_data="task_confirm_yes"),
+            InlineKeyboardButton("✅ Confirmar", callback_data="task_confirm_yes"),
             InlineKeyboardButton("❌ Cancelar", callback_data="task_confirm_no")
         ]
     ]
@@ -346,17 +309,19 @@ async def task_confirmed(update: Update, context: ContextTypes.DEFAULT_TYPE):
             deadline=task_data.get('deadline')
         )
         
+        motivation = random.choice(CORTANA_MOTIVATION)
+        
         message = f"""
-✅ <b>¡Tarea creada con éxito!</b>
+{CORTANA_TASK_CREATED}
 
-La tarea "{task_data['title']}" ha sido creada.
+<b>Objetivo:</b> {task_data['title']}
 
-Puedes verla en el menú de tareas.
+{motivation}
 """
         
         keyboard = [
-            [InlineKeyboardButton("👁️ Ver tarea", callback_data=f"task_view_{task_id}")],
-            [InlineKeyboardButton("📋 Ver todas las tareas", callback_data="task_list_all")]
+            [InlineKeyboardButton("👁️ Ver objetivo", callback_data=f"task_view_{task_id}")],
+            [InlineKeyboardButton("📋 Ver todos los objetivos", callback_data="task_list_all")]
         ]
         
         await query.edit_message_text(
@@ -366,7 +331,7 @@ Puedes verla en el menú de tareas.
         )
         
     except Exception as e:
-        message = f"❌ Error al crear la tarea: {str(e)}"
+        message = f"❌ Error del sistema al crear el objetivo: {str(e)}"
         await query.edit_message_text(message)
     
     context.user_data.pop('new_task', None)
@@ -379,14 +344,8 @@ async def task_creation_cancelled(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
     
-    message = """
-❌ <b>Creación cancelada</b>
-
-No se ha creado ninguna tarea.
-"""
-    
     await query.edit_message_text(
-        message,
+        CORTANA_CREATION_CANCELLED,
         parse_mode=ParseMode.HTML,
         reply_markup=get_tasks_menu()
     )

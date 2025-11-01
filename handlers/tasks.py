@@ -1,11 +1,12 @@
 """
-Handler de tareas
+Handler de tareas con personalidad Cortana
 Gestiona la visualización, creación y modificación de tareas
 """
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.constants import ParseMode
 from datetime import datetime, date, timedelta
+import random
 
 import config
 from database.models import DatabaseManager, Task, Project
@@ -17,6 +18,23 @@ from utils.keyboards import (
     get_cancel_keyboard
 )
 from utils.formatters import format_task
+from cortana_personality import (
+    CORTANA_TASK_MENU,
+    CORTANA_TASK_COMPLETED,
+    CORTANA_TASK_DELETED,
+    CORTANA_TASK_POSTPONED,
+    CORTANA_TASK_NO_RESULTS,
+    CORTANA_SUBTASK_MENU,
+    CORTANA_SUBTASK_CREATED,
+    CORTANA_SUBTASK_NO_RESULTS,
+    CORTANA_EDIT_MENU,
+    CORTANA_EDIT_SUCCESS,
+    CORTANA_DELETE_CONFIRM,
+    CORTANA_CONFIRM_YES,
+    CORTANA_ERROR_NOT_FOUND,
+    CORTANA_ERROR_INVALID,
+    CORTANA_MOTIVATION
+)
 
 # Inicializar gestores
 db_manager = DatabaseManager()
@@ -33,18 +51,8 @@ async def show_tasks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    message = """
-✅ <b>Gestión de Tareas</b>
-
-Organiza todas tus tareas y pendientes.
-
-Puedes filtrar por fecha, prioridad o proyecto.
-
-¿Qué quieres hacer?
-"""
-    
     await query.edit_message_text(
-        message,
+        CORTANA_TASK_MENU,
         parse_mode=ParseMode.HTML,
         reply_markup=get_tasks_menu()
     )
@@ -55,38 +63,36 @@ async def list_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # Extraer filtro (task_list_today, task_list_week, etc.)
     filter_type = query.data.split('_')[-1]
     
-    # Obtener tareas según filtro
     filters = {}
     title = ""
     
     if filter_type == "today":
         filters = {'today': True}
-        title = "📅 <b>Tareas de Hoy</b>"
+        title = "📅 <b>Objetivos de Hoy</b>"
     elif filter_type == "week":
         filters = {'deadline': (date.today(), date.today() + timedelta(days=7))}
-        title = "📅 <b>Tareas de Esta Semana</b>"
+        title = "📅 <b>Objetivos de Esta Semana</b>"
     elif filter_type == "overdue":
         filters = {'overdue': True}
-        title = "⚠️ <b>Tareas Atrasadas</b>"
+        title = "⚠️ <b>Objetivos Atrasados</b>"
     elif filter_type == "high":
         filters = {'priority': 'high'}
-        title = "🔴 <b>Tareas de Alta Prioridad</b>"
+        title = "🔴 <b>Objetivos de Alta Prioridad</b>"
     elif filter_type == "all":
         filters = {'parent_only': True}
-        title = "📋 <b>Todas las Tareas</b>"
+        title = "📋 <b>Todos los Objetivos</b>"
     else:
         filters = {}
-        title = "📋 <b>Tareas</b>"
+        title = "📋 <b>Objetivos</b>"
     
     tasks = task_manager.get_all(filters=filters)
     
     if not tasks:
         message = f"""{title}
 
-❌ No hay tareas en esta categoría.
+{CORTANA_TASK_NO_RESULTS}
 """
         await query.edit_message_text(
             message,
@@ -95,21 +101,19 @@ async def list_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Contar tareas por estado
     completed = len([t for t in tasks if t['status'] == 'completed'])
     in_progress = len([t for t in tasks if t['status'] == 'in_progress'])
     pending = len([t for t in tasks if t['status'] == 'pending'])
     
     message = f"""{title}
 
-Total: {len(tasks)} tareas
-✅ Completadas: {completed}
+Total: {len(tasks)} objetivos
+✅ Completados: {completed}
 🔄 En progreso: {in_progress}
 ⏳ Pendientes: {pending}
 
-Selecciona una tarea para ver detalles:"""
+Selecciona un objetivo para ver detalles:"""
     
-    # Crear teclado con lista de tareas
     keyboard = get_task_list_keyboard(tasks, filter_type=filter_type, page=1)
     
     await query.edit_message_text(
@@ -124,43 +128,36 @@ async def view_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # Extraer ID de la tarea
     try:
         task_id = int(query.data.split('_')[-1])
     except ValueError:
-        await query.edit_message_text("❌ Error: ID de tarea inválido")
+        await query.edit_message_text(f"{CORTANA_ERROR_INVALID}")
         return
     
-    # Obtener tarea
     task = task_manager.get_by_id(task_id)
     
     if not task:
         await query.edit_message_text(
-            "❌ Tarea no encontrada",
+            CORTANA_ERROR_NOT_FOUND,
             reply_markup=get_tasks_menu()
         )
         return
     
-    # Obtener nombre del proyecto si está asociada
     project_name = None
     if task.get('project_id'):
         project = project_manager.get_by_id(task['project_id'])
         if project:
             project_name = project['name']
     
-    # Formatear mensaje
     message = format_task(task, include_project=True, project_name=project_name)
     
-    # Verificar si tiene subtareas
     subtasks = task_manager.get_subtasks(task_id)
     has_subtasks = len(subtasks) > 0
     
-    # Si tiene subtareas, agregar resumen
     if has_subtasks:
         completed_subtasks = len([s for s in subtasks if s['status'] == 'completed'])
-        message += f"\n\n📋 Subtareas: {completed_subtasks}/{len(subtasks)} completadas"
+        message += f"\n\n📋 Subobjetivos: {completed_subtasks}/{len(subtasks)} completados"
     
-    # Crear teclado con acciones
     keyboard = get_task_detail_keyboard(task_id, task['status'], has_subtasks)
     
     await query.edit_message_text(
@@ -175,24 +172,22 @@ async def change_task_status(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
     
-    # Extraer ID y nuevo estado
     parts = query.data.split('_')
     
     try:
         task_id = int(parts[2])
         new_status = parts[3]
     except (IndexError, ValueError):
-        await query.answer("❌ Error en los datos", show_alert=True)
+        await query.answer(f"❌ {CORTANA_ERROR_INVALID}", show_alert=True)
         return
     
-    # Actualizar estado
     success = task_manager.update_status(task_id, new_status)
     
     if success:
         status_messages = {
-            'pending': "⏳ Tarea marcada como pendiente",
-            'in_progress': "🔄 Tarea en progreso",
-            'completed': "✅ Tarea completada"
+            'pending': "⏳ Objetivo marcado como pendiente",
+            'in_progress': "🔄 Objetivo en progreso. Adelante, Spartan.",
+            'completed': "✅ Objetivo completado"
         }
         
         await query.answer(
@@ -200,7 +195,6 @@ async def change_task_status(update: Update, context: ContextTypes.DEFAULT_TYPE)
             show_alert=False
         )
         
-        # Volver a mostrar la tarea
         await view_task(update, context)
     else:
         await query.answer("❌ Error al actualizar estado", show_alert=True)
@@ -210,56 +204,51 @@ async def complete_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Marca una tarea como completada"""
     query = update.callback_query
     
-    # Extraer ID de la tarea
     try:
         task_id = int(query.data.split('_')[-1])
     except ValueError:
-        await query.answer("❌ Error: ID inválido", show_alert=True)
+        await query.answer(f"❌ {CORTANA_ERROR_INVALID}", show_alert=True)
         return
     
-    # Completar tarea
     success = task_manager.update_status(task_id, 'completed')
     
     if success:
-        await query.answer("✅ ¡Tarea completada! Buen trabajo", show_alert=True)
+        await query.answer(CORTANA_TASK_COMPLETED, show_alert=True)
         await view_task(update, context)
     else:
-        await query.answer("❌ Error al completar tarea", show_alert=True)
+        await query.answer("❌ Error al completar objetivo", show_alert=True)
 
 
 async def postpone_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Pospone una tarea X días"""
     query = update.callback_query
     
-    # Extraer ID y días
     parts = query.data.split('_')
     
     try:
         task_id = int(parts[2])
         days = int(parts[3])
     except (IndexError, ValueError):
-        await query.answer("❌ Error en los datos", show_alert=True)
+        await query.answer(f"❌ {CORTANA_ERROR_INVALID}", show_alert=True)
         return
     
-    # Verificar que la tarea tenga fecha límite
     task = task_manager.get_by_id(task_id)
     
     if not task or not task.get('deadline'):
-        await query.answer("❌ Esta tarea no tiene fecha límite", show_alert=True)
+        await query.answer("❌ Este objetivo no tiene deadline", show_alert=True)
         return
     
-    # Posponer
     success = task_manager.postpone(task_id, days)
     
     if success:
         days_text = "día" if days == 1 else f"{days} días"
         await query.answer(
-            f"📅 Tarea pospuesta {days_text}",
+            f"📅 {CORTANA_TASK_POSTPONED}",
             show_alert=True
         )
         await view_task(update, context)
     else:
-        await query.answer("❌ Error al posponer tarea", show_alert=True)
+        await query.answer("❌ Error al posponer objetivo", show_alert=True)
 
 
 # ==================== AGREGAR SUBTAREA ====================
@@ -272,35 +261,34 @@ async def add_subtask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         parent_task_id = int(query.data.split('_')[-1])
     except ValueError:
-        await query.answer("❌ Error: ID inválido", show_alert=True)
+        await query.answer(f"❌ {CORTANA_ERROR_INVALID}", show_alert=True)
         return
     
     parent_task = task_manager.get_by_id(parent_task_id)
     
     if not parent_task:
         await query.edit_message_text(
-            "❌ Tarea no encontrada",
+            CORTANA_ERROR_NOT_FOUND,
             reply_markup=get_tasks_menu()
         )
         return
     
-    # Guardar ID de la tarea padre en el contexto
     context.user_data['parent_task_id'] = parent_task_id
     context.user_data['new_subtask'] = {}
     
     message = f"""
-➕ <b>Nueva Subtarea</b>
+➕ <b>Nuevo Subobjetivo</b>
 
-Tarea principal: <b>{parent_task['title']}</b>
+Objetivo principal: <b>{parent_task['title']}</b>
 
-<b>Paso 1/2:</b> ¿Cuál es el título de la subtarea?
+{CORTANA_SUBTASK_MENU}
+
+<b>Paso 1/2:</b> ¿Título del subobjetivo?
 
 Ejemplos:
 • Diseñar mockups
 • Escribir tests unitarios
 • Revisar código
-
-Escribe el título:
 """
     
     keyboard = [[InlineKeyboardButton(
@@ -332,13 +320,13 @@ async def subtask_title_received(update: Update, context: ContextTypes.DEFAULT_T
     parent_task_id = context.user_data['parent_task_id']
     
     message = f"""
-➕ <b>Nueva Subtarea</b>
+➕ <b>Nuevo Subobjetivo</b>
 
 ✅ Título: {title}
 
 <b>Paso 2/2:</b> ¿Descripción? (opcional)
 
-Envía la descripción o escribe <code>-</code> para omitir.
+Envía la descripción o <code>-</code> para omitir.
 """
     
     keyboard = [
@@ -358,7 +346,6 @@ Envía la descripción o escribe <code>-</code> para omitir.
 async def subtask_description_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Recibe la descripción de la subtarea o la omite"""
     
-    # Verificar si viene del callback (omitir) o del mensaje
     if update.callback_query:
         query = update.callback_query
         await query.answer()
@@ -372,7 +359,6 @@ async def subtask_description_received(update: Update, context: ContextTypes.DEF
     subtask_data = context.user_data['new_subtask']
     parent_task = task_manager.get_by_id(parent_task_id)
     
-    # Crear subtarea en la base de datos
     try:
         subtask_id = task_manager.create(
             title=subtask_data['title'],
@@ -384,17 +370,17 @@ async def subtask_description_received(update: Update, context: ContextTypes.DEF
         )
         
         message = f"""
-✅ <b>Subtarea creada con éxito</b>
+✅ <b>Subobjetivo Registrado</b>
 
-La subtarea "{subtask_data['title']}" ha sido agregada a:
+{CORTANA_SUBTASK_CREATED}
+
+"{subtask_data['title']}" añadido a:
 <b>{parent_task['title']}</b>
-
-Puedes verla en la lista de subtareas.
 """
         
         keyboard = [
-            [InlineKeyboardButton("📋 Ver subtareas", callback_data=f"task_view_subtasks_{parent_task_id}")],
-            [InlineKeyboardButton("🔙 Volver a tarea", callback_data=f"task_view_{parent_task_id}")]
+            [InlineKeyboardButton("📋 Ver subobjetivos", callback_data=f"task_view_subtasks_{parent_task_id}")],
+            [InlineKeyboardButton("🔙 Volver a objetivo", callback_data=f"task_view_{parent_task_id}")]
         ]
         
         if update.callback_query:
@@ -411,13 +397,12 @@ Puedes verla en la lista de subtareas.
             )
         
     except Exception as e:
-        error_message = f"❌ Error al crear la subtarea: {str(e)}"
+        error_message = f"❌ Error al crear el subobjetivo: {str(e)}"
         if update.callback_query:
             await update.callback_query.edit_message_text(error_message)
         else:
             await update.message.reply_text(error_message)
     
-    # Limpiar datos temporales
     context.user_data.pop('parent_task_id', None)
     context.user_data.pop('new_subtask', None)
     
@@ -432,14 +417,14 @@ async def view_subtasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         parent_task_id = int(query.data.split('_')[-1])
     except ValueError:
-        await query.answer("❌ Error: ID inválido", show_alert=True)
+        await query.answer(f"❌ {CORTANA_ERROR_INVALID}", show_alert=True)
         return
     
     parent_task = task_manager.get_by_id(parent_task_id)
     
     if not parent_task:
         await query.edit_message_text(
-            "❌ Tarea no encontrada",
+            CORTANA_ERROR_NOT_FOUND,
             reply_markup=get_tasks_menu()
         )
         return
@@ -448,11 +433,11 @@ async def view_subtasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not subtasks:
         message = f"""
-📋 <b>Subtareas</b>
+📋 <b>Subobjetivos</b>
 
-Tarea principal: <b>{parent_task['title']}</b>
+Objetivo principal: <b>{parent_task['title']}</b>
 
-❌ Esta tarea no tiene subtareas todavía.
+{CORTANA_SUBTASK_NO_RESULTS}
 """
         keyboard = [[InlineKeyboardButton(
             f"{config.EMOJI['back']} Volver",
@@ -469,11 +454,11 @@ Tarea principal: <b>{parent_task['title']}</b>
     completed = len([s for s in subtasks if s['status'] == 'completed'])
     
     message = f"""
-📋 <b>Subtareas de: {parent_task['title']}</b>
+📋 <b>Subobjetivos de: {parent_task['title']}</b>
 
-Progreso: {completed}/{len(subtasks)} completadas
+Progreso: {completed}/{len(subtasks)} completados
 
-<b>Lista de subtareas:</b>
+<b>Lista de subobjetivos:</b>
 """
     
     for i, subtask in enumerate(subtasks, 1):
@@ -502,7 +487,7 @@ Progreso: {completed}/{len(subtasks)} completadas
         )])
     
     keyboard.append([InlineKeyboardButton(
-        f"{config.EMOJI['back']} Volver a tarea principal",
+        f"{config.EMOJI['back']} Volver a objetivo principal",
         callback_data=f"task_view_{parent_task_id}"
     )])
     
@@ -523,34 +508,33 @@ async def edit_task_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         task_id = int(query.data.split('_')[-1])
     except ValueError:
-        await query.answer("❌ Error: ID inválido", show_alert=True)
+        await query.answer(f"❌ {CORTANA_ERROR_INVALID}", show_alert=True)
         return
     
     task = task_manager.get_by_id(task_id)
     
     if not task:
         await query.edit_message_text(
-            "❌ Tarea no encontrada",
+            CORTANA_ERROR_NOT_FOUND,
             reply_markup=get_tasks_menu()
         )
         return
     
-    # Guardar ID de la tarea en el contexto
     context.user_data['edit_task_id'] = task_id
     
     message = f"""
-✏️ <b>Editar Tarea</b>
+{CORTANA_EDIT_MENU}
 
-<b>Tarea:</b> {task['title']}
+<b>Objetivo:</b> {task['title']}
 
-¿Qué deseas editar?
+¿Qué parámetro modificamos?
 """
     
     keyboard = [
         [InlineKeyboardButton("📝 Título", callback_data=f"edit_task_field_title_{task_id}")],
         [InlineKeyboardButton("📄 Descripción", callback_data=f"edit_task_field_description_{task_id}")],
         [InlineKeyboardButton("⚡ Prioridad", callback_data=f"edit_task_field_priority_{task_id}")],
-        [InlineKeyboardButton("📅 Fecha límite", callback_data=f"edit_task_field_deadline_{task_id}")],
+        [InlineKeyboardButton("📅 Deadline", callback_data=f"edit_task_field_deadline_{task_id}")],
         [InlineKeyboardButton(f"{config.EMOJI['back']} Volver", callback_data=f"task_view_{task_id}")]
     ]
     
@@ -566,8 +550,6 @@ async def edit_task_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # Extraer el campo y el task_id
-    # Formato: edit_task_field_title_123
     parts = query.data.split('_')
     field = parts[3]
     task_id = int(parts[4])
@@ -575,18 +557,17 @@ async def edit_task_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = task_manager.get_by_id(task_id)
     
     if not task:
-        await query.edit_message_text("❌ Tarea no encontrada")
+        await query.edit_message_text(CORTANA_ERROR_NOT_FOUND)
         return ConversationHandler.END
     
     context.user_data['edit_task_id'] = task_id
     context.user_data['edit_task_field'] = field
     
-    # Si es prioridad, mostrar opciones
     if field == "priority":
         message = f"""
 ✏️ <b>Editar Prioridad</b>
 
-Tarea: <b>{task['title']}</b>
+Objetivo: <b>{task['title']}</b>
 Prioridad actual: {config.PRIORITY_LEVELS.get(task['priority'], task['priority'])}
 
 Selecciona la nueva prioridad:
@@ -605,11 +586,10 @@ Selecciona la nueva prioridad:
         )
         return EDIT_VALUE
     
-    # Para otros campos, pedir texto
     field_names = {
         'title': 'título',
         'description': 'descripción',
-        'deadline': 'fecha límite (YYYY-MM-DD)'
+        'deadline': 'deadline (YYYY-MM-DD)'
     }
     
     field_name = field_names.get(field, field)
@@ -618,7 +598,7 @@ Selecciona la nueva prioridad:
     message = f"""
 ✏️ <b>Editar {field_name.capitalize()}</b>
 
-Tarea: <b>{task['title']}</b>
+Objetivo: <b>{task['title']}</b>
 {field_name.capitalize()} actual: <b>{current_value}</b>
 
 Envía el nuevo valor:
@@ -648,22 +628,19 @@ async def edit_task_value_received(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text("❌ Error en la edición")
         return ConversationHandler.END
     
-    # Si viene de callback (prioridad)
     if update.callback_query:
         query = update.callback_query
         await query.answer()
-        new_value = query.data.split('_')[-1]  # edit_priority_high -> high
+        new_value = query.data.split('_')[-1]
     else:
         new_value = update.message.text.strip()
     
-    # Validar según el campo
     if field == 'title' and len(new_value) > config.MAX_TASK_NAME_LENGTH:
         await update.message.reply_text(
             f"❌ El título es muy largo. Máximo {config.MAX_TASK_NAME_LENGTH} caracteres."
         )
         return EDIT_VALUE
     
-    # Actualizar en la base de datos
     conn = db_manager.get_connection()
     cursor = conn.cursor()
     
@@ -683,12 +660,13 @@ async def edit_task_value_received(update: Update, context: ContextTypes.DEFAULT
         conn.close()
     
     if success:
+        motivation = random.choice(CORTANA_MOTIVATION)
         message = f"""
-✅ <b>Tarea actualizada</b>
+{CORTANA_EDIT_SUCCESS}
 
-El campo <b>{field}</b> ha sido actualizado correctamente.
+{motivation}
 """
-        keyboard = [[InlineKeyboardButton("👁️ Ver tarea", callback_data=f"task_view_{task_id}")]]
+        keyboard = [[InlineKeyboardButton("👁️ Ver objetivo", callback_data=f"task_view_{task_id}")]]
         
         if update.callback_query:
             await update.callback_query.edit_message_text(
@@ -703,13 +681,12 @@ El campo <b>{field}</b> ha sido actualizado correctamente.
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
     else:
-        error_msg = "❌ Error al actualizar la tarea"
+        error_msg = "❌ Error al actualizar el objetivo"
         if update.callback_query:
             await update.callback_query.edit_message_text(error_msg)
         else:
             await update.message.reply_text(error_msg)
     
-    # Limpiar contexto
     context.user_data.pop('edit_task_id', None)
     context.user_data.pop('edit_task_field', None)
     
@@ -726,14 +703,14 @@ async def delete_task_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     try:
         task_id = int(query.data.split('_')[-1])
     except ValueError:
-        await query.answer("❌ Error: ID inválido", show_alert=True)
+        await query.answer(f"❌ {CORTANA_ERROR_INVALID}", show_alert=True)
         return
     
     task = task_manager.get_by_id(task_id)
     
     if not task:
         await query.edit_message_text(
-            "❌ Tarea no encontrada",
+            CORTANA_ERROR_NOT_FOUND,
             reply_markup=get_tasks_menu()
         )
         return
@@ -742,28 +719,24 @@ async def delete_task_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     warning = ""
     if subtasks:
-        warning = f"\n\n⚠️ <b>Atención:</b> Esta tarea tiene {len(subtasks)} subtarea(s). Al eliminarla, también se eliminarán todas sus subtareas."
+        warning = f"\n\n⚠️ <b>Atención:</b> Este objetivo tiene {len(subtasks)} subobjetivo(s). Al eliminarlo, también se eliminarán todos sus subobjetivos."
     
     message = f"""
-🗑️ <b>Confirmar Eliminación</b>
+{CORTANA_DELETE_CONFIRM}
 
-¿Estás seguro de que quieres eliminar esta tarea?
-
-<b>Tarea:</b> {task['title']}
+<b>Objetivo:</b> {task['title']}
 <b>Estado:</b> {config.TASK_STATUS.get(task['status'], task['status'])}
 <b>Prioridad:</b> {config.PRIORITY_LEVELS.get(task['priority'], task['priority'])}{warning}
-
-<b>⚠️ Esta acción no se puede deshacer.</b>
 """
     
     keyboard = [
         [
             InlineKeyboardButton(
-                "✅ Sí, eliminar",
+                "✅ Confirmar eliminación",
                 callback_data=f"task_delete_{task_id}"
             ),
             InlineKeyboardButton(
-                "❌ No, cancelar",
+                "❌ Cancelar",
                 callback_data=f"task_view_{task_id}"
             )
         ]
@@ -783,24 +756,22 @@ async def delete_task_confirmed(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         task_id = int(query.data.split('_')[-1])
     except ValueError:
-        await query.answer("❌ Error: ID inválido", show_alert=True)
+        await query.answer(f"❌ {CORTANA_ERROR_INVALID}", show_alert=True)
         return
     
     task = task_manager.get_by_id(task_id)
-    task_title = task['title'] if task else "Tarea"
+    task_title = task['title'] if task else "Objetivo"
     
     success = task_manager.delete(task_id)
     
     if success:
         await query.answer(
-            f"🗑️ Tarea '{task_title}' eliminada",
+            f"🗑️ '{task_title}' eliminado del sistema",
             show_alert=True
         )
         
-        message = """
-✅ <b>Tarea eliminada correctamente</b>
-
-¿Qué quieres hacer ahora?
+        message = f"""
+{CORTANA_TASK_DELETED}
 """
         
         await query.edit_message_text(
@@ -810,7 +781,7 @@ async def delete_task_confirmed(update: Update, context: ContextTypes.DEFAULT_TY
         )
     else:
         await query.answer(
-            "❌ Error al eliminar la tarea",
+            "❌ Error al eliminar el objetivo",
             show_alert=True
         )
         

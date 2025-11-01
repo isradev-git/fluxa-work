@@ -1,5 +1,5 @@
 """
-Bot de Telegram para productividad personal
+Bot de Telegram para productividad personal - Versión Cortana (Halo)
 Punto de entrada principal de la aplicación
 
 Este archivo inicializa el bot, configura los handlers (manejadores de mensajes y botones),
@@ -27,6 +27,9 @@ from utils.reminders import ReminderSystem
 from utils.keyboards import get_main_keyboard
 from utils.formatters import format_dashboard
 
+# Importar personalidad de Cortana
+from cortana_personality import CORTANA_WELCOME, CORTANA_HELP
+
 # Importar handlers
 from handlers import menu, projects, tasks, notes, dashboard, settings, task_conversations
 
@@ -42,6 +45,7 @@ class ProductivityBot:
     """
     Clase principal que gestiona el bot de productividad.
     Coordina la inicialización, handlers y recordatorios.
+    Personalidad: Cortana de Halo
     """
     
     def __init__(self):
@@ -64,7 +68,7 @@ class ProductivityBot:
         self.reminder_system = None
         self.scheduler = AsyncIOScheduler()
         
-        logger.info("✅ Bot inicializado")
+        logger.info("✅ Bot inicializado - Personalidad: Cortana")
     
     def setup_handlers(self):
         """
@@ -333,32 +337,24 @@ class ProductivityBot:
         # ========== HANDLERS PARA FUNCIONALIDADES NUEVAS ==========
         
         # Handler para ver subtareas
-        # Cuando presionas "📋 Ver subtareas", este handler muestra la lista
         self.app.add_handler(CallbackQueryHandler(
             tasks.view_subtasks,
             pattern="^task_view_subtasks_"
         ))
         
         # Handler para el menú de edición de tarea
-        # Cuando presionas "✏️ Editar", te muestra un menú con opciones de qué editar
         self.app.add_handler(CallbackQueryHandler(
             tasks.edit_task_menu,
             pattern="^task_edit_"
         ))
         
         # Handler para solicitar confirmación de eliminación
-        # Cuando presionas "🗑️ Eliminar", primero te pide confirmar
         self.app.add_handler(CallbackQueryHandler(
             tasks.delete_task_confirm,
             pattern="^task_delete_confirm_"
         ))
         
         # Handler para eliminar después de confirmar
-        # Cuando confirmas la eliminación presionando "✅ Sí, eliminar"
-        # IMPORTANTE: Este handler debe ir DESPUÉS del de confirmación
-        # El pattern usa "negative lookahead" (?!confirm) que significa:
-        #   - Coincide con "task_delete_123" ✓
-        #   - NO coincide con "task_delete_confirm_123" ✗
         self.app.add_handler(CallbackQueryHandler(
             tasks.delete_task_confirmed,
             pattern="^task_delete_(?!confirm)"
@@ -408,39 +404,20 @@ class ProductivityBot:
     
     async def start_command(self, update: Update, context):
         """
-        Maneja el comando /start
-        Este es el primer mensaje que ve el usuario al iniciar el bot.
-        
-        Args:
-            update: Objeto con información del mensaje recibido
-            context: Contexto de la conversación
+        Maneja el comando /start con personalidad de Cortana
         """
         # Verificar que el usuario está autorizado
         user_id = update.effective_user.id
         if user_id != config.AUTHORIZED_USER_ID:
             await update.message.reply_text(
-                "❌ Lo siento, este bot es personal y solo puede ser usado por su propietario."
+                "❌ Acceso denegado. Este sistema es personal y clasificado."
             )
             return
         
-        # Mensaje de bienvenida
-        welcome_message = f"""
-¡Hola {update.effective_user.first_name}! 👋
-
-Soy tu asistente personal de productividad. Estoy aquí para ayudarte a:
-
-📁 Gestionar tus proyectos
-✅ Organizar tus tareas
-📝 Guardar notas importantes
-📊 Ver tu progreso y estadísticas
-⏰ Recordarte tus pendientes
-
-Usa el menú de abajo para navegar o escribe /help para más información.
-
-Recibirás un resumen diario cada mañana a las 07:00 con tus tareas del día. 
-
-¡Vamos a ser productivos! 🚀
-"""
+        # Mensaje de bienvenida estilo Cortana
+        welcome_message = CORTANA_WELCOME.format(
+            name=update.effective_user.first_name
+        )
         
         # Enviar mensaje con el teclado principal
         await update.message.reply_text(
@@ -448,62 +425,14 @@ Recibirás un resumen diario cada mañana a las 07:00 con tus tareas del día.
             reply_markup=get_main_keyboard()
         )
         
-        logger.info(f"Usuario {user_id} inició el bot")
+        logger.info(f"Usuario {user_id} inició el bot - Cortana activada")
     
     async def help_command(self, update: Update, context):
         """
-        Maneja el comando /help
-        Muestra información de ayuda sobre cómo usar el bot.
+        Maneja el comando /help con personalidad de Cortana
         """
-        help_message = """
-<b>📖 Guía de uso</b>
-
-<b>Menú Principal</b>
-Usa los botones del menú inferior para navegar:
-
-📁 <b>Proyectos</b>: Gestiona tus proyectos
-• Crear nuevos proyectos
-• Ver progreso y detalles
-• Asociar tareas a proyectos
-
-✅ <b>Tareas</b>: Organiza tu trabajo
-• Crear tareas con prioridades
-• Ver tareas por fecha o prioridad
-• Completar y posponer tareas
-• Agregar subtareas
-• Editar y eliminar tareas
-
-📅 <b>Hoy</b>: Vista rápida del día
-• Tareas de hoy
-• Tareas atrasadas
-• Acciones rápidas
-
-📊 <b>Dashboard</b>: Tu resumen general
-• Estadísticas de productividad
-• Estado de proyectos
-• Próximas entregas
-
-📝 <b>Notas</b>: Guarda información
-• Crear notas con etiquetas
-• Asociar a proyectos o tareas
-• Búsqueda rápida
-
-⚙️ <b>Configuración</b>
-• Cambiar hora de recordatorios
-• Exportar datos
-• Ajustes personales
-
-<b>🔔 Recordatorios automáticos</b>
-• 07:00 - Resumen diario
-• 18:00 - Tareas de mañana
-• Domingos - Resumen semanal
-• Mensual - Estadísticas del mes
-
-¡Todo se maneja con botones, sin comandos complejos!
-"""
-        
         await update.message.reply_text(
-            help_message,
+            CORTANA_HELP,
             parse_mode=ParseMode.HTML
         )
     
@@ -512,10 +441,10 @@ Usa los botones del menú inferior para navegar:
         Configura el sistema de recordatorios automáticos.
         
         Usa APScheduler para programar tareas que se ejecutan automáticamente:
-        - Resumen diario cada mañana
-        - Recordatorio de tarde
-        - Resumen semanal
-        - Resumen mensual
+        - Briefing diario cada mañana
+        - Preview nocturno
+        - Análisis semanal
+        - Informe mensual
         """
         # Inicializar sistema de recordatorios
         self.reminder_system = ReminderSystem(
@@ -524,39 +453,39 @@ Usa los botones del menú inferior para navegar:
             user_id=config.AUTHORIZED_USER_ID
         )
         
-        # Resumen diario (07:00 por defecto)
+        # Briefing diario (07:00 por defecto)
         self.scheduler.add_job(
             self.reminder_system.send_daily_summary,
-            trigger=CronTrigger(hour=7, minute=0),  # 07:00 cada día
+            trigger=CronTrigger(hour=7, minute=0),
             id='daily_summary',
-            name='Resumen diario',
+            name='Briefing Matutino',
             replace_existing=True
         )
         
-        # Recordatorio de tarde (18:00 por defecto)
+        # Preview nocturno (18:00 por defecto)
         self.scheduler.add_job(
             self.reminder_system.send_evening_reminder,
-            trigger=CronTrigger(hour=18, minute=0),  # 18:00 cada día
+            trigger=CronTrigger(hour=18, minute=0),
             id='evening_reminder',
-            name='Recordatorio de tarde',
+            name='Preview Nocturno',
             replace_existing=True
         )
         
-        # Resumen semanal (domingos a las 20:00)
+        # Análisis semanal (domingos a las 20:00)
         self.scheduler.add_job(
             self.reminder_system.send_weekly_summary,
             trigger=CronTrigger(day_of_week='sun', hour=20, minute=0),
             id='weekly_summary',
-            name='Resumen semanal',
+            name='Análisis Semanal',
             replace_existing=True
         )
         
-        # Resumen mensual (día 1 de cada mes a las 09:00)
+        # Informe mensual (día 1 de cada mes a las 09:00)
         self.scheduler.add_job(
             self.reminder_system.send_monthly_summary,
             trigger=CronTrigger(day=1, hour=9, minute=0),
             id='monthly_summary',
-            name='Resumen mensual',
+            name='Informe Mensual',
             replace_existing=True
         )
         
@@ -564,10 +493,10 @@ Usa los botones del menú inferior para navegar:
         self.scheduler.start()
         
         logger.info("✅ Sistema de recordatorios configurado")
-        logger.info("📅 Resumen diario: 07:00")
-        logger.info("🔔 Recordatorio tarde: 18:00")
-        logger.info("📊 Resumen semanal: Domingos 20:00")
-        logger.info("📈 Resumen mensual: Día 1 de cada mes 09:00")
+        logger.info("📅 Briefing Matutino: 07:00")
+        logger.info("🔔 Preview Nocturno: 18:00")
+        logger.info("📊 Análisis Semanal: Domingos 20:00")
+        logger.info("📈 Informe Mensual: Día 1 de cada mes 09:00")
     
     def run(self):
         """
@@ -578,7 +507,7 @@ Usa los botones del menú inferior para navegar:
         2. Configura los recordatorios
         3. Inicia el bot en modo polling (escucha constantemente mensajes)
         """
-        logger.info("🚀 Iniciando bot...")
+        logger.info("🚀 Iniciando sistema Cortana...")
         
         # Configurar handlers y recordatorios
         self.setup_handlers()
@@ -586,9 +515,9 @@ Usa los botones del menú inferior para navegar:
         
         # Mensaje de inicio
         logger.info("=" * 50)
-        logger.info("✅ Bot de productividad iniciado correctamente")
-        logger.info(f"👤 Usuario autorizado: {config.AUTHORIZED_USER_ID}")
-        logger.info("🔄 Esperando mensajes...")
+        logger.info("✅ Cortana inicializada correctamente")
+        logger.info(f"👤 Spartan autorizado: {config.AUTHORIZED_USER_ID}")
+        logger.info("🔄 Sistema en línea, esperando comandos...")
         logger.info("=" * 50)
         
         # Iniciar bot (polling = escuchar constantemente)
@@ -611,6 +540,6 @@ if __name__ == "__main__":
         bot.run()
         
     except KeyboardInterrupt:
-        logger.info("\n👋 Bot detenido por el usuario")
+        logger.info("\n👋 Cortana desconectada. Stay safe, Spartan.")
     except Exception as e:
-        logger.error(f"❌ Error fatal: {e}", exc_info=True)
+        logger.error(f"❌ Error crítico del sistema: {e}", exc_info=True)
