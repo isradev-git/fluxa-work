@@ -348,6 +348,7 @@ class Task:
                 - priority: Prioridad
                 - overdue: True para tareas atrasadas
                 - today: True para tareas de hoy
+                - parent_only: True para excluir subtareas
                 
         Returns:
             Lista de tareas como diccionarios
@@ -379,6 +380,15 @@ class Task:
             
             if filters.get('parent_only'):
                 query += " AND parent_task_id IS NULL"
+            
+            # Nuevos filtros para fechas
+            if 'deadline_from' in filters:
+                query += " AND deadline >= ?"
+                params.append(filters['deadline_from'])
+            
+            if 'deadline_to' in filters:
+                query += " AND deadline <= ?"
+                params.append(filters['deadline_to'])
         
         query += """ ORDER BY 
             CASE priority
@@ -429,6 +439,150 @@ class Task:
                 completed_at = ?
             WHERE id = ?
         """, (status, completed_at, task_id))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    # NUEVOS MÉTODOS AÑADIDOS
+    
+    def update_deadline(self, task_id: int, deadline: Optional[str]) -> bool:
+        """
+        Actualiza la fecha límite de una tarea.
+        
+        Args:
+            task_id: ID de la tarea
+            deadline: Nueva fecha límite en formato YYYY-MM-DD o None para sin fecha
+            
+        Returns:
+            True si se actualizó correctamente
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE tasks 
+            SET deadline = ?, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (deadline, task_id))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    def update_title(self, task_id: int, title: str) -> bool:
+        """
+        Actualiza el título de una tarea.
+        
+        Args:
+            task_id: ID de la tarea
+            title: Nuevo título
+            
+        Returns:
+            True si se actualizó correctamente
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE tasks 
+            SET title = ?, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (title, task_id))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    def update_description(self, task_id: int, description: str) -> bool:
+        """
+        Actualiza la descripción de una tarea.
+        
+        Args:
+            task_id: ID de la tarea
+            description: Nueva descripción
+            
+        Returns:
+            True si se actualizó correctamente
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE tasks 
+            SET description = ?, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (description, task_id))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    def update_priority(self, task_id: int, priority: str) -> bool:
+        """
+        Actualiza la prioridad de una tarea.
+        
+        Args:
+            task_id: ID de la tarea
+            priority: Nueva prioridad (low, medium, high)
+            
+        Returns:
+            True si se actualizó correctamente
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE tasks 
+            SET priority = ?, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (priority, task_id))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        
+        return success
+    
+    def update(self, task_id: int, data: Dict[str, Any]) -> bool:
+        """
+        Actualiza múltiples campos de una tarea.
+        
+        Args:
+            task_id: ID de la tarea
+            data: Diccionario con los campos a actualizar
+            
+        Returns:
+            True si se actualizó correctamente
+        """
+        if not data:
+            return False
+        
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        # Construir la consulta dinámicamente
+        set_clause = ", ".join([f"{key} = ?" for key in data.keys()])
+        values = list(data.values())
+        values.append(task_id)
+        
+        cursor.execute(f"""
+            UPDATE tasks 
+            SET {set_clause}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, values)
         
         success = cursor.rowcount > 0
         conn.commit()
