@@ -154,7 +154,7 @@ class ProductivityBot:
                 )
             ],
             allow_reentry=True,
-            per_message=True,
+            per_message=False,  # Corregido: era True
             conversation_timeout=300,
             name="project_creation",
             persistent=False
@@ -188,13 +188,13 @@ class ProductivityBot:
                     ),
                     CallbackQueryHandler(
                         task_conversations.task_description_received,
-                        pattern="^task_skip_desc$"
+                        pattern="^task_skip_description$"
                     )
                 ],
                 task_conversations.TASK_PRIORITY: [
                     CallbackQueryHandler(
                         task_conversations.task_priority_received,
-                        pattern="^priority_"
+                        pattern="^task_priority_"
                     )
                 ],
                 task_conversations.TASK_DEADLINE: [
@@ -204,7 +204,7 @@ class ProductivityBot:
                     ),
                     CallbackQueryHandler(
                         task_conversations.task_deadline_received,
-                        pattern="^task_skip_deadline$"
+                        pattern="^task_deadline_"
                     )
                 ],
                 task_conversations.TASK_PROJECT: [
@@ -226,12 +226,12 @@ class ProductivityBot:
             },
             fallbacks=[
                 CallbackQueryHandler(
-                    tasks.show_tasks_menu,
+                    menu.show_tasks_menu,  # Corregido: era tasks.show_tasks_menu
                     pattern="^menu_tasks$"
                 )
             ],
             allow_reentry=True,
-            per_message=True,
+            per_message=False,  # Corregido: era True
             conversation_timeout=300,
             name="task_creation",
             persistent=False
@@ -272,7 +272,7 @@ class ProductivityBot:
                 )
             ],
             allow_reentry=True,
-            per_message=True,
+            per_message=False,  # Corregido: era True
             conversation_timeout=300,
             name="subtask_creation",
             persistent=False
@@ -307,7 +307,7 @@ class ProductivityBot:
                 )
             ],
             allow_reentry=True,
-            per_message=True,
+            per_message=False,  # Corregido: era True
             conversation_timeout=300,
             name="task_edit",
             persistent=False
@@ -385,7 +385,7 @@ class ProductivityBot:
         # ========== HANDLERS DE TAREAS ==========
         
         self.app.add_handler(CallbackQueryHandler(
-            tasks.show_tasks_menu,
+            menu.show_tasks_menu,  # Corregido: era tasks.show_tasks_menu
             pattern="^menu_tasks$"
         ))
         

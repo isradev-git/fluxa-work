@@ -2,7 +2,7 @@
 Handler del menú principal con personalidad Cortana
 Maneja la navegación general del bot y las vistas principales
 """
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from datetime import date, datetime, timedelta
@@ -36,24 +36,62 @@ project_manager = Project(db_manager)
 
 async def show_projects_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el menú de proyectos"""
-    await update.message.reply_text(
-        CORTANA_PROJECT_MENU,
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_projects_menu()
-    )
+    # Determinar si viene de mensaje o callback
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        is_callback = True
+    else:
+        is_callback = False
+    
+    if is_callback:
+        await query.edit_message_text(
+            CORTANA_PROJECT_MENU,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_projects_menu()
+        )
+    else:
+        await update.message.reply_text(
+            CORTANA_PROJECT_MENU,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_projects_menu()
+        )
 
 
 async def show_tasks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el menú de tareas"""
-    await update.message.reply_text(
-        CORTANA_TASK_MENU,
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_tasks_menu()
-    )
+    # Determinar si viene de mensaje o callback
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        is_callback = True
+    else:
+        is_callback = False
+    
+    if is_callback:
+        await query.edit_message_text(
+            CORTANA_TASK_MENU,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_tasks_menu()
+        )
+    else:
+        await update.message.reply_text(
+            CORTANA_TASK_MENU,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_tasks_menu()
+        )
 
 
 async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra las tareas de hoy y tareas atrasadas"""
+    # Determinar si viene de mensaje o callback
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        is_callback = True
+    else:
+        is_callback = False
+
     today = date.today()
     
     # Obtener tareas de hoy
@@ -100,15 +138,30 @@ async def show_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     message = "\n".join(lines)
     
-    await update.message.reply_text(
-        message,
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_tasks_menu()
-    )
+    if is_callback:
+        await query.edit_message_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_tasks_menu()
+        )
+    else:
+        await update.message.reply_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_tasks_menu()
+        )
 
 
 async def show_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el dashboard con el resumen general"""
+    # Determinar si viene de mensaje o callback
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        is_callback = True
+    else:
+        is_callback = False
+
     today = date.today()
     next_week = today + timedelta(days=7)
     
@@ -159,29 +212,66 @@ async def show_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     message = f"{CORTANA_DASHBOARD_INTRO}\n\n{format_dashboard(summary)}"
     
-    await update.message.reply_text(
-        message,
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_dashboard_menu()
-    )
+    if is_callback:
+        await query.edit_message_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_dashboard_menu()
+        )
+    else:
+        await update.message.reply_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_dashboard_menu()
+        )
 
 
 async def show_notes_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el menú de notas"""
-    await update.message.reply_text(
-        CORTANA_NOTES_MENU,
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_notes_menu()
-    )
+    # Determinar si viene de mensaje o callback
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        is_callback = True
+    else:
+        is_callback = False
+    
+    if is_callback:
+        await query.edit_message_text(
+            CORTANA_NOTES_MENU,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_notes_menu()
+        )
+    else:
+        await update.message.reply_text(
+            CORTANA_NOTES_MENU,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_notes_menu()
+        )
 
 
 async def show_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el menú de configuración"""
-    await update.message.reply_text(
-        CORTANA_SETTINGS_MENU,
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_settings_menu()
-    )
+    # Determinar si viene de mensaje o callback
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        is_callback = True
+    else:
+        is_callback = False
+    
+    if is_callback:
+        await query.edit_message_text(
+            CORTANA_SETTINGS_MENU,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_settings_menu()
+        )
+    else:
+        await update.message.reply_text(
+            CORTANA_SETTINGS_MENU,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_settings_menu()
+        )
 
 
 async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -203,6 +293,7 @@ Usa los botones de abajo para navegar por las diferentes secciones.
 Comando /help disponible si necesitas orientación.
 """
     
+    # Como esta función solo se llama desde callbacks, no necesita verificar
     await query.edit_message_text(
         message,
         parse_mode=ParseMode.HTML
