@@ -394,6 +394,12 @@ class ProductivityBot:
             pattern="^task_list_"
         ))
         
+        # CORRECCIÓN: El handler más específico (view_subtasks) debe ir antes que el general (view_task)
+        self.app.add_handler(CallbackQueryHandler(
+            tasks.view_subtasks,
+            pattern="^task_view_subtasks_"
+        ))
+        
         self.app.add_handler(CallbackQueryHandler(
             tasks.view_task,
             pattern="^task_view_"
@@ -412,11 +418,6 @@ class ProductivityBot:
         self.app.add_handler(CallbackQueryHandler(
             tasks.postpone_task,
             pattern="^task_postpone_"
-        ))
-        
-        self.app.add_handler(CallbackQueryHandler(
-            tasks.view_subtasks,
-            pattern="^task_view_subtasks_"
         ))
         
         self.app.add_handler(CallbackQueryHandler(

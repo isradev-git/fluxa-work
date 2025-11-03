@@ -79,12 +79,10 @@ async def list_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif 'overdue' in callback_parts:
         filter_type = 'overdue'
         title = "⚠️ Objetivos Atrasados"
-        # CORRECCIÓN: Asegurarse de que el filtro 'overdue' funcione
         tasks = task_manager.get_all({'overdue': True, 'parent_only': True})
     elif 'high_priority' in callback_parts:
         filter_type = 'high_priority'
         title = "🔴 Objetivos de Alta Prioridad"
-        # CORRECCIÓN: Añadir el filtro de prioridad alta
         tasks = task_manager.get_all({'priority': 'high', 'parent_only': True})
     else:  # 'all' o cualquier otro caso
         filter_type = 'all'
@@ -133,6 +131,17 @@ async def view_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ Error: ID de objetivo inválido")
         return
     
+    await view_task_by_id(update, context, task_id)
+
+
+async def view_task_by_id(update: Update, context: ContextTypes.DEFAULT_TYPE, task_id: int, force_refresh: bool = False):
+    """
+    Función auxiliar para mostrar una tarea por su ID.
+    Se usa después de modificar una tarea para actualizar la vista.
+    El parámetro force_refresh ayuda a evitar el error "Message is not modified".
+    """
+    query = update.callback_query
+    
     task = task_manager.get_by_id(task_id)
     
     if not task:
@@ -142,8 +151,14 @@ async def view_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    # --- INICIO DE DEPURACIÓN ---
+    print("="*50)
+    print(f"DEBUG: Mostrando tarea ID {task_id}")
+    print(f"DEBUG: Estado de la tarea en la BD: '{task.get('status')}'")
+    # --- FIN DE DEPURACIÓN ---
+    
     # Obtener subtareas si existen
-    subtasks = task_manager.get_all({'parent_task_id': task_id})
+    subtasks = task_manager.get_subtasks(task_id)
     has_subtasks = len(subtasks) > 0
     
     # Obtener nombre del proyecto si está asociado a uno
@@ -157,18 +172,66 @@ async def view_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     message = format_task(task, include_project=True, project_name=project_name)
     
+    # --- INICIO DE DEPURACIÓN ---
+    print(f"DEBUG: Mensaje generado (longitud {len(message)}):")
+    print(repr(message)) # Usamos repr para ver caracteres invisibles
+    print("="*50)
+    # --- FIN DE DEPURACIÓN ---
+    
     keyboard = get_task_detail_keyboard(
         task_id, 
         task['status'],
         has_subtasks
     )
     
-    await query.edit_message_text(
-        message,
-        parse_mode=ParseMode.HTML,
-        reply_markup=keyboard
-    )
-
+    # SI SE FUERZA LA ACTUALIZACIÓN, AÑADIMOS UN CARÁCTER INVISIBLE PARA CAMBIAR EL MENSAJE
+    if force_refresh:
+        message += "\u200B"  # Espacio de ancho cero (Zero-Width Space)
+        print("DEBUG: Forzando refresh con carácter invisible.")
+    
+    try:
+        await query.edit_message_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard
+        )
+    except Exception as e:
+        # Manejo específico de errores comunes de Telegram
+        error_message = str(e)
+        
+        print(f"Error al editar mensaje de tarea: {error_message}") # Log para depuración
+        
+        # Caso 1: El mensaje no se modificó (es idéntico)
+        if "Message is not modified" in error_message:
+            print("DEBUG: El mensaje no cambió. Reintentando con fuerza.")
+            # Llamamos a la misma función pero con force_refresh=True
+            # Esto añadirá un carácter invisible y forzará la actualización.
+            await view_task_by_id(update, context, task_id, force_refresh=True)
+            return
+        
+        # Caso 2: El mensaje es demasiado largo
+        if "message is too long" in error_message:
+            max_length = 4096
+            if len(message) > max_length:
+                truncated_message = message[:max_length - 50] + "\n\n<i>(Mensaje truncado por ser muy largo)</i>"
+                try:
+                    await query.edit_message_text(
+                        truncated_message,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=keyboard
+                    )
+                    return
+                except Exception as e2:
+                    print(f"Error al enviar mensaje truncado: {e2}")
+        
+        # Caso 3: Otro tipo de error
+        try:
+            await query.message.reply_text(
+                "❌ No se pudo actualizar la vista, pero la acción se completó. Vuelve al menú de tareas para ver los cambios.",
+                reply_markup=get_tasks_menu()
+            )
+        except Exception as e3:
+            print(f"Error fatal al enviar mensaje de fallback: {e3}")
 
 async def change_task_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cambia el estado de una tarea"""
@@ -177,7 +240,6 @@ async def change_task_status(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     parts = query.data.split('_')
     
-    # CORRECCIÓN: Manejar correctamente el callback_data "task_status_ID_estado"
     try:
         # El formato es "task_status_ID_estado"
         task_id = int(parts[2])
@@ -185,6 +247,13 @@ async def change_task_status(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except (IndexError, ValueError):
         await query.answer("❌ Error en los datos", show_alert=True)
         return
+    
+    # --- CORRECCIÓN DEL BUG ---
+    # Si por alguna razón el estado es 'in', lo mapeamos a 'in_progress'
+    if new_status == 'in':
+        new_status = 'in_progress'
+        print(f"DEBUG: Mapeando estado 'in' a 'in_progress' para la tarea {task_id}")
+    # --- FIN DE LA CORRECCIÓN ---
     
     success = task_manager.update_status(task_id, new_status)
     
@@ -200,10 +269,10 @@ async def change_task_status(update: Update, context: ContextTypes.DEFAULT_TYPE)
             show_alert=False
         )
         
-        await view_task(update, context)
+        # Llamar a view_task_by_id para actualizar la vista
+        await view_task_by_id(update, context, task_id)
     else:
         await query.answer("❌ Error al actualizar estado", show_alert=True)
-
 
 async def complete_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Marca una tarea como completada"""
@@ -229,7 +298,8 @@ async def complete_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
             show_alert=True
         )
         
-        await view_task(update, context)
+        # Llamar a view_task_by_id para actualizar la vista
+        await view_task_by_id(update, context, task_id)
     else:
         await query.answer("❌ Error al completar objetivo", show_alert=True)
 
@@ -241,7 +311,6 @@ async def postpone_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     parts = query.data.split('_')
     
-    # CORRECCIÓN: Manejar correctamente el callback_data "task_postpone_ID_dias"
     try:
         task_id = int(parts[2])
         days = int(parts[3])
@@ -255,25 +324,7 @@ async def postpone_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer(f"❌ {CORTANA_ERROR_NOT_FOUND}", show_alert=True)
         return
     
-    # Calcular nueva fecha límite
-    if task.get('deadline'):
-        try:
-            current_deadline = datetime.strptime(task['deadline'], "%Y-%m-%d").date()
-        except:
-            current_deadline = date.today()
-    else:
-        current_deadline = date.today()
-    
-    new_deadline = current_deadline + timedelta(days=days)
-    
-    # CORRECCIÓN: Usar un método genérico de actualización si update_deadline no existe
-    # Necesitaremos ver database/models.py para implementar esto correctamente
-    try:
-        # Intentar usar el método update_deadline si existe
-        success = task_manager.update_deadline(task_id, new_deadline.strftime("%Y-%m-%d"))
-    except AttributeError:
-        # Si no existe, usar un método de actualización genérico
-        success = task_manager.update(task_id, {'deadline': new_deadline.strftime("%Y-%m-%d")})
+    success = task_manager.postpone(task_id, days)
     
     if success:
         await query.answer(
@@ -281,7 +332,8 @@ async def postpone_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
             show_alert=False
         )
         
-        await view_task(update, context)
+        # Llamar a view_task_by_id para actualizar la vista
+        await view_task_by_id(update, context, task_id)
     else:
         await query.answer("❌ Error al posponer objetivo", show_alert=True)
 
@@ -297,7 +349,7 @@ async def view_subtasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ Error: ID inválido")
         return
     
-    subtasks = task_manager.get_all({'parent_task_id': task_id})
+    subtasks = task_manager.get_subtasks(task_id)
     
     if not subtasks:
         message = "📋 <b>Subobjetivos</b>\n\n❌ No hay subobjetivos registrados."
@@ -322,12 +374,40 @@ async def view_subtasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )]
     ]
     
-    await query.edit_message_text(
-        message,
-        parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    # --- INICIO DE LA LÓGICA DE REINTENTO ROBUSTA ---
+    try:
+        await query.edit_message_text(
+            message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    except Exception as e:
+        error_message = str(e)
+        print(f"Error al editar mensaje de subtareas: {error_message}")
 
+        if "Message is not modified" in error_message:
+            print("DEBUG: El mensaje de subtareas no cambió. Reintentando con fuerza.")
+            # Forzamos la actualización añadiendo un carácter invisible
+            message_with_force = message + "\u200B"
+            try:
+                await query.edit_message_text(
+                    message_with_force,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+                return
+            except Exception as e2:
+                print(f"Error al forzar la actualización de subtareas: {e2}")
+        
+        # Si todo lo demás falla, enviamos un mensaje nuevo
+        try:
+            await query.message.reply_text(
+                "❌ No se pudo actualizar la vista de subobjetivos. Por favor, inténtalo de nuevo.",
+                reply_markup=get_tasks_menu()
+            )
+        except Exception as e3:
+            print(f"Error fatal al enviar mensaje de fallback para subtareas: {e3}")
+    # --- FIN DE LA LÓGICA DE REINTENTO ---
 
 async def edit_task_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el menú de edición de una tarea"""

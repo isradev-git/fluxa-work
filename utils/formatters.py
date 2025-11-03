@@ -93,9 +93,11 @@ def format_project_with_progress(project: Dict[str, Any],
 def format_task(task: Dict[str, Any], include_project: bool = False,
                project_name: Optional[str] = None) -> str:
     """Formatea la información de una tarea"""
+    
+    # Asegurarse de que los emojis de estado sean diferentes
     status_emoji = {
         'pending': '⏳',
-        'in_progress': '🔄',
+        'in_progress': '🔄',  # Este debe ser diferente de 'pending'
         'completed': '✅'
     }
     
@@ -105,11 +107,12 @@ def format_task(task: Dict[str, Any], include_project: bool = False,
         'low': '🟢'
     }
     
-    lines = [
-        f"{status_emoji.get(task['status'], '❓')}{priority_emoji.get(task['priority'], '❓')} <b>{task['title']}</b>",
-        f""
-    ]
+    # El título debe incluir el emoji de estado para que sea visible el cambio
+    title_with_status = f"{status_emoji.get(task['status'], '❓')}{priority_emoji.get(task['priority'], '❓')} <b>{task['title']}</b>"
     
+    lines = [title_with_status, ""]
+    
+    # Línea de estado explícita para mayor claridad
     lines.append(f"Estado: {config.TASK_STATUS.get(task['status'], 'Desconocido')}")
     lines.append(f"Prioridad: {config.PRIORITY_LEVELS.get(task['priority'], 'Media')}")
     
@@ -120,13 +123,13 @@ def format_task(task: Dict[str, Any], include_project: bool = False,
         lines.append(f"Misión: {project_name}")
     
     if task.get('description'):
-        lines.append(f"")
+        lines.append("")
         lines.append(f"📄 {task['description']}")
     
     if task.get('created_at'):
         try:
             created = datetime.fromisoformat(task['created_at'])
-            lines.append(f"")
+            lines.append("")
             lines.append(f"📅 Creado: {created.strftime('%d/%m/%Y')}")
         except:
             pass
@@ -139,7 +142,6 @@ def format_task(task: Dict[str, Any], include_project: bool = False,
             pass
     
     return "\n".join(lines)
-
 
 def format_task_list(tasks: List[Dict[str, Any]], title: str) -> str:
     """Formatea una lista de tareas"""

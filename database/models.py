@@ -208,13 +208,13 @@ class Project:
         
         return dict(row) if row else None
     
-    def update_status(self, project_id: int, status: str) -> bool:
+    def update_status(self, task_id: int, status: str) -> bool:
         """
-        Actualiza el estado de un proyecto.
+        Actualiza el estado de una tarea.
         
         Args:
-            project_id: ID del proyecto
-            status: Nuevo estado (active, paused, completed)
+            task_id: ID de la tarea
+            status: Nuevo estado (pending, in_progress, completed)
             
         Returns:
             True si se actualizó correctamente
@@ -222,22 +222,28 @@ class Project:
         conn = self.db.get_connection()
         cursor = conn.cursor()
         
+        # Validar que el estado sea uno de los permitidos
+        valid_statuses = ['pending', 'in_progress', 'completed']
+        if status not in valid_statuses:
+            print(f"ERROR: Estado inválido '{status}'. Estados válidos: {valid_statuses}")
+            conn.close()
+            return False
+        
         completed_at = datetime.now().isoformat() if status == 'completed' else None
         
         cursor.execute("""
-            UPDATE projects 
+            UPDATE tasks 
             SET status = ?, 
                 updated_at = CURRENT_TIMESTAMP,
                 completed_at = ?
             WHERE id = ?
-        """, (status, completed_at, project_id))
+        """, (status, completed_at, task_id))
         
         success = cursor.rowcount > 0
         conn.commit()
         conn.close()
         
         return success
-    
     def get_progress(self, project_id: int) -> Dict[str, Any]:
         """
         Calcula el progreso de un proyecto basándose en sus tareas.
