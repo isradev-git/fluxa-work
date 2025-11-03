@@ -31,7 +31,7 @@ from utils.formatters import format_dashboard
 from cortana_personality import CORTANA_WELCOME, CORTANA_HELP
 
 # Importar handlers
-from handlers import menu, projects, tasks, notes, dashboard, settings, task_conversations
+from handlers import menu, projects, tasks, notes, dashboard, settings, task_conversations, project_conversations
 
 # Configurar logging
 logging.basicConfig(
@@ -74,91 +74,93 @@ class ProductivityBot:
         """
         Configura todos los handlers (manejadores) del bot.
         
-        Los handlers procesan los mensajes del usuario y las interacciones con botones.
-        Hay diferentes tipos:
-        - CommandHandler: Para comandos como /start
-        - MessageHandler: Para mensajes de texto
-        - CallbackQueryHandler: Para cuando presionas un botón inline
+        IMPORTANTE: El orden de registro es crítico:
+        1. Comandos (/start, /help)
+        2. ConversationHandlers (diálogos multi-paso) - DEBEN IR PRIMERO
+        3. MessageHandlers del menú persistente
+        4. CallbackQueryHandlers (botones inline)
+        
+        Los ConversationHandlers tienen prioridad sobre otros handlers.
         """
         
-        # Handler para el comando /start
-        self.app.add_handler(CommandHandler("start", self.start_command))
+        # ========== COMANDOS ==========
         
-        # Handler para el comando /help
+        self.app.add_handler(CommandHandler("start", self.start_command))
         self.app.add_handler(CommandHandler("help", self.help_command))
         
-        # Handlers para los botones del menú principal (teclado persistente)
-        # Estos detectan cuando presionas los botones de abajo
-        self.app.add_handler(MessageHandler(
-            filters.Regex(f"^{config.EMOJI['project']} Proyectos$"),
-            menu.show_projects_menu
-        ))
+        # ========== CONVERSATION HANDLERS ==========
+        # CRÍTICO: Estos DEBEN ir ANTES del menú persistente
         
-        self.app.add_handler(MessageHandler(
-            filters.Regex(f"^{config.EMOJI['task']} Tareas$"),
-            menu.show_tasks_menu
-        ))
+        # ConversationHandler para crear nuevo proyecto
+        project_creation_handler = ConversationHandler(
+            entry_points=[
+                CallbackQueryHandler(
+                    project_conversations.create_project_start, 
+                    pattern="^project_new$"
+                )
+            ],
+            states={
+                project_conversations.PROJECT_NAME: [
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND, 
+                        project_conversations.project_name_received
+                    ),
+                    CallbackQueryHandler(
+                        project_conversations.project_creation_cancelled,
+                        pattern="^project_create_cancel$"
+                    )
+                ],
+                project_conversations.PROJECT_DESCRIPTION: [
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND,
+                        project_conversations.project_description_received
+                    ),
+                    CallbackQueryHandler(
+                        project_conversations.project_description_received,
+                        pattern="^project_skip_desc$"
+                    )
+                ],
+                project_conversations.PROJECT_PRIORITY: [
+                    CallbackQueryHandler(
+                        project_conversations.project_priority_received,
+                        pattern="^priority_"
+                    )
+                ],
+                project_conversations.PROJECT_DEADLINE: [
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND,
+                        project_conversations.project_deadline_received
+                    ),
+                    CallbackQueryHandler(
+                        project_conversations.project_deadline_received,
+                        pattern="^project_skip_deadline$"
+                    )
+                ],
+                project_conversations.PROJECT_CONFIRM: [
+                    CallbackQueryHandler(
+                        project_conversations.project_confirmed,
+                        pattern="^project_confirm_yes$"
+                    ),
+                    CallbackQueryHandler(
+                        project_conversations.project_creation_cancelled,
+                        pattern="^project_create_cancel$"
+                    )
+                ]
+            },
+            fallbacks=[
+                CallbackQueryHandler(
+                    projects.show_projects_menu,
+                    pattern="^menu_projects$"
+                )
+            ],
+            allow_reentry=True,
+            per_message=True,
+            conversation_timeout=300,
+            name="project_creation",
+            persistent=False
+        )
         
-        self.app.add_handler(MessageHandler(
-            filters.Regex(f"^{config.EMOJI['today']} Hoy$"),
-            menu.show_today
-        ))
-        
-        self.app.add_handler(MessageHandler(
-            filters.Regex(f"^{config.EMOJI['dashboard']} Dashboard$"),
-            menu.show_dashboard
-        ))
-        
-        self.app.add_handler(MessageHandler(
-            filters.Regex(f"^{config.EMOJI['note']} Notas$"),
-            menu.show_notes_menu
-        ))
-        
-        self.app.add_handler(MessageHandler(
-            filters.Regex(f"^{config.EMOJI['settings']} Configuración$"),
-            menu.show_settings_menu
-        ))
-        
-        # Handlers para botones inline (los que aparecen dentro de mensajes)
-        # Estos se activan cuando presionas botones como "Ver proyectos", "Nueva tarea", etc.
-        
-        # Callbacks de navegación general
-        self.app.add_handler(CallbackQueryHandler(
-            menu.back_to_main,
-            pattern="^back_to_main$"
-        ))
-        
-        # Callbacks de proyectos (pattern es un patrón regex que identifica el botón)
-        self.app.add_handler(CallbackQueryHandler(
-            projects.show_projects_menu,
-            pattern="^menu_projects$"
-        ))
-        
-        self.app.add_handler(CallbackQueryHandler(
-            projects.list_projects,
-            pattern="^project_list_"
-        ))
-        
-        self.app.add_handler(CallbackQueryHandler(
-            projects.view_project,
-            pattern="^project_view_"
-        ))
-        
-        self.app.add_handler(CallbackQueryHandler(
-            projects.change_project_status,
-            pattern="^project_status_"
-        ))
-        
-        self.app.add_handler(CallbackQueryHandler(
-            projects.complete_project,
-            pattern="^project_complete_"
-        ))
-        
-        # Callbacks de tareas
-        self.app.add_handler(CallbackQueryHandler(
-            tasks.show_tasks_menu,
-            pattern="^menu_tasks$"
-        ))
+        self.app.add_handler(project_creation_handler)
         
         # ConversationHandler para crear nueva tarea
         task_creation_handler = ConversationHandler(
@@ -181,18 +183,18 @@ class ProductivityBot:
                 ],
                 task_conversations.TASK_DESCRIPTION: [
                     MessageHandler(
-                        filters.TEXT & ~filters.COMMAND, 
+                        filters.TEXT & ~filters.COMMAND,
                         task_conversations.task_description_received
                     ),
                     CallbackQueryHandler(
                         task_conversations.task_description_received,
-                        pattern="^task_skip_description$"
+                        pattern="^task_skip_desc$"
                     )
                 ],
                 task_conversations.TASK_PRIORITY: [
                     CallbackQueryHandler(
                         task_conversations.task_priority_received,
-                        pattern="^task_priority_"
+                        pattern="^priority_"
                     )
                 ],
                 task_conversations.TASK_DEADLINE: [
@@ -202,7 +204,7 @@ class ProductivityBot:
                     ),
                     CallbackQueryHandler(
                         task_conversations.task_deadline_received,
-                        pattern="^task_deadline_"
+                        pattern="^task_skip_deadline$"
                     )
                 ],
                 task_conversations.TASK_PROJECT: [
@@ -218,17 +220,19 @@ class ProductivityBot:
                     ),
                     CallbackQueryHandler(
                         task_conversations.task_creation_cancelled,
-                        pattern="^task_confirm_no$"
+                        pattern="^task_create_cancel$"
                     )
                 ]
             },
             fallbacks=[
                 CallbackQueryHandler(
-                    task_conversations.task_creation_cancelled,
-                    pattern="^task_create_cancel$"
+                    tasks.show_tasks_menu,
+                    pattern="^menu_tasks$"
                 )
             ],
             allow_reentry=True,
+            per_message=True,
+            conversation_timeout=300,
             name="task_creation",
             persistent=False
         )
@@ -268,6 +272,8 @@ class ProductivityBot:
                 )
             ],
             allow_reentry=True,
+            per_message=True,
+            conversation_timeout=300,
             name="subtask_creation",
             persistent=False
         )
@@ -301,13 +307,88 @@ class ProductivityBot:
                 )
             ],
             allow_reentry=True,
+            per_message=True,
+            conversation_timeout=300,
             name="task_edit",
             persistent=False
         )
         
         self.app.add_handler(task_edit_handler)
         
-        # Handlers para listar y ver tareas
+        # ========== MENÚ PERSISTENTE ==========
+        # IMPORTANTE: Estos van DESPUÉS de los ConversationHandlers
+        
+        self.app.add_handler(MessageHandler(
+            filters.Regex(f"^{config.EMOJI['project']} Proyectos$"),
+            menu.show_projects_menu
+        ))
+        
+        self.app.add_handler(MessageHandler(
+            filters.Regex(f"^{config.EMOJI['task']} Tareas$"),
+            menu.show_tasks_menu
+        ))
+        
+        self.app.add_handler(MessageHandler(
+            filters.Regex(f"^{config.EMOJI['today']} Hoy$"),
+            menu.show_today
+        ))
+        
+        self.app.add_handler(MessageHandler(
+            filters.Regex(f"^{config.EMOJI['dashboard']} Dashboard$"),
+            dashboard.show_dashboard
+        ))
+        
+        self.app.add_handler(MessageHandler(
+            filters.Regex(f"^{config.EMOJI['note']} Notas$"),
+            notes.show_notes_menu
+        ))
+        
+        self.app.add_handler(MessageHandler(
+            filters.Regex(f"^{config.EMOJI['settings']} Configuración$"),
+            settings.show_settings_menu
+        ))
+        
+        # ========== CALLBACKS DE NAVEGACIÓN ==========
+        
+        self.app.add_handler(CallbackQueryHandler(
+            menu.back_to_main,
+            pattern="^back_to_main$"
+        ))
+        
+        # ========== HANDLERS DE PROYECTOS ==========
+        
+        self.app.add_handler(CallbackQueryHandler(
+            projects.show_projects_menu,
+            pattern="^menu_projects$"
+        ))
+        
+        self.app.add_handler(CallbackQueryHandler(
+            projects.list_projects,
+            pattern="^project_list_"
+        ))
+        
+        self.app.add_handler(CallbackQueryHandler(
+            projects.view_project,
+            pattern="^project_view_"
+        ))
+        
+        self.app.add_handler(CallbackQueryHandler(
+            projects.change_project_status,
+            pattern="^project_status_"
+        ))
+        
+        self.app.add_handler(CallbackQueryHandler(
+            projects.complete_project,
+            pattern="^project_complete_"
+        ))
+        
+        # ========== HANDLERS DE TAREAS ==========
+        
+        self.app.add_handler(CallbackQueryHandler(
+            tasks.show_tasks_menu,
+            pattern="^menu_tasks$"
+        ))
+        
         self.app.add_handler(CallbackQueryHandler(
             tasks.list_tasks,
             pattern="^task_list_"
@@ -318,7 +399,6 @@ class ProductivityBot:
             pattern="^task_view_"
         ))
         
-        # Handlers para cambiar estado de tareas
         self.app.add_handler(CallbackQueryHandler(
             tasks.change_task_status,
             pattern="^task_status_"
@@ -334,35 +414,28 @@ class ProductivityBot:
             pattern="^task_postpone_"
         ))
         
-        # ========== HANDLERS PARA FUNCIONALIDADES NUEVAS ==========
-        
-        # Handler para ver subtareas
         self.app.add_handler(CallbackQueryHandler(
             tasks.view_subtasks,
             pattern="^task_view_subtasks_"
         ))
         
-        # Handler para el menú de edición de tarea
         self.app.add_handler(CallbackQueryHandler(
             tasks.edit_task_menu,
             pattern="^task_edit_"
         ))
         
-        # Handler para solicitar confirmación de eliminación
         self.app.add_handler(CallbackQueryHandler(
             tasks.delete_task_confirm,
             pattern="^task_delete_confirm_"
         ))
         
-        # Handler para eliminar después de confirmar
         self.app.add_handler(CallbackQueryHandler(
             tasks.delete_task_confirmed,
             pattern="^task_delete_(?!confirm)"
         ))
         
-        # ========== FIN DE HANDLERS NUEVOS ==========
+        # ========== HANDLERS DE NOTAS ==========
         
-        # Callbacks de notas
         self.app.add_handler(CallbackQueryHandler(
             notes.show_notes_menu,
             pattern="^menu_notes$"
@@ -370,7 +443,7 @@ class ProductivityBot:
         
         self.app.add_handler(CallbackQueryHandler(
             notes.list_notes,
-            pattern="^note_list_"
+            pattern="^note_list"
         ))
         
         self.app.add_handler(CallbackQueryHandler(
@@ -378,169 +451,161 @@ class ProductivityBot:
             pattern="^note_view_"
         ))
         
-        # Callbacks de dashboard y estadísticas
+        # ========== HANDLERS DE DASHBOARD ==========
+        
         self.app.add_handler(CallbackQueryHandler(
             dashboard.show_dashboard,
-            pattern="^menu_dashboard$"
+            pattern="^dashboard_main$"
         ))
         
         self.app.add_handler(CallbackQueryHandler(
             dashboard.show_weekly_stats,
-            pattern="^stats_weekly$"
+            pattern="^dashboard_weekly$"
         ))
         
         self.app.add_handler(CallbackQueryHandler(
             dashboard.show_monthly_stats,
-            pattern="^stats_monthly$"
+            pattern="^dashboard_monthly$"
         ))
         
-        # Callbacks de configuración
+        # ========== HANDLERS DE CONFIGURACIÓN ==========
+        
         self.app.add_handler(CallbackQueryHandler(
             settings.show_settings_menu,
-            pattern="^menu_settings$"
+            pattern="^settings_menu$"
         ))
         
         logger.info("✅ Handlers configurados")
     
-    async def start_command(self, update: Update, context):
-        """
-        Maneja el comando /start con personalidad de Cortana
-        """
-        # Verificar que el usuario está autorizado
-        user_id = update.effective_user.id
-        if user_id != config.AUTHORIZED_USER_ID:
-            await update.message.reply_text(
-                "❌ Acceso denegado. Este sistema es personal y clasificado."
-            )
-            return
-        
-        # Mensaje de bienvenida estilo Cortana
-        welcome_message = CORTANA_WELCOME.format(
-            name=update.effective_user.first_name
-        )
-        
-        # Enviar mensaje con el teclado principal
-        await update.message.reply_text(
-            welcome_message,
-            parse_mode=ParseMode.HTML,
-            reply_markup=get_main_keyboard()
-        )
-        
-        logger.info(f"Usuario {user_id} inició el bot - Cortana activada")
-    
-    async def help_command(self, update: Update, context):
-        """
-        Maneja el comando /help con personalidad de Cortana
-        """
-        await update.message.reply_text(
-            CORTANA_HELP,
-            parse_mode=ParseMode.HTML
-        )
-    
     def setup_reminders(self):
         """
         Configura el sistema de recordatorios automáticos.
-        
-        Usa APScheduler para programar tareas que se ejecutan automáticamente:
-        - Briefing diario cada mañana
-        - Preview nocturno
-        - Análisis semanal
-        - Informe mensual
         """
+        
         # Inicializar sistema de recordatorios
         self.reminder_system = ReminderSystem(
-            db_manager=self.db_manager,
-            bot=self.app.bot,
-            user_id=config.AUTHORIZED_USER_ID
+            self.db_manager,
+            self.app.bot,
+            config.AUTHORIZED_USER_ID
         )
         
-        # Briefing diario (07:00 por defecto)
+        # Resumen diario
         self.scheduler.add_job(
             self.reminder_system.send_daily_summary,
-            trigger=CronTrigger(hour=7, minute=0),
+            trigger=CronTrigger(
+                hour=config.DEFAULT_DAILY_SUMMARY_TIME.hour,
+                minute=config.DEFAULT_DAILY_SUMMARY_TIME.minute
+            ),
             id='daily_summary',
-            name='Briefing Matutino',
-            replace_existing=True
+            name='Resumen diario'
         )
+        logger.info(f"✅ Resumen diario programado: {config.DEFAULT_DAILY_SUMMARY_TIME}")
         
-        # Preview nocturno (18:00 por defecto)
+        # Recordatorio tarde
         self.scheduler.add_job(
             self.reminder_system.send_evening_reminder,
-            trigger=CronTrigger(hour=18, minute=0),
+            trigger=CronTrigger(
+                hour=config.DEFAULT_EVENING_REMINDER_TIME.hour,
+                minute=config.DEFAULT_EVENING_REMINDER_TIME.minute
+            ),
             id='evening_reminder',
-            name='Preview Nocturno',
-            replace_existing=True
+            name='Recordatorio tarde'
         )
+        logger.info(f"✅ Recordatorio tarde programado: {config.DEFAULT_EVENING_REMINDER_TIME}")
         
-        # Análisis semanal (domingos a las 20:00)
+        # Resumen semanal
         self.scheduler.add_job(
             self.reminder_system.send_weekly_summary,
-            trigger=CronTrigger(day_of_week='sun', hour=20, minute=0),
+            trigger=CronTrigger(
+                day_of_week='sun',
+                hour=20,
+                minute=0
+            ),
             id='weekly_summary',
-            name='Análisis Semanal',
-            replace_existing=True
+            name='Resumen semanal'
         )
+        logger.info("✅ Resumen semanal programado: Domingos 20:00")
         
-        # Informe mensual (día 1 de cada mes a las 09:00)
+        # Resumen mensual
         self.scheduler.add_job(
             self.reminder_system.send_monthly_summary,
-            trigger=CronTrigger(day=1, hour=9, minute=0),
+            trigger=CronTrigger(
+                day=1,
+                hour=9,
+                minute=0
+            ),
             id='monthly_summary',
-            name='Informe Mensual',
-            replace_existing=True
+            name='Resumen mensual'
         )
+        logger.info("✅ Resumen mensual programado: Día 1 de cada mes, 09:00")
         
         # Iniciar el scheduler
         self.scheduler.start()
-        
         logger.info("✅ Sistema de recordatorios configurado")
-        logger.info("📅 Briefing Matutino: 07:00")
-        logger.info("🔔 Preview Nocturno: 18:00")
-        logger.info("📊 Análisis Semanal: Domingos 20:00")
-        logger.info("📈 Informe Mensual: Día 1 de cada mes 09:00")
+    
+    async def start_command(self, update: Update, context):
+        """
+        Maneja el comando /start.
+        """
+        user = update.effective_user
+        
+        if user.id != config.AUTHORIZED_USER_ID:
+            await update.message.reply_text(
+                "❌ Lo siento, no estás autorizado para usar este bot."
+            )
+            return
+        
+        welcome_message = CORTANA_WELCOME.format(name=user.first_name)
+        
+        await update.message.reply_text(
+            welcome_message,
+            reply_markup=get_main_keyboard(),
+            parse_mode=ParseMode.HTML
+        )
+        
+        logger.info(f"Usuario {user.first_name} ({user.id}) inició el bot")
+    
+    async def help_command(self, update: Update, context):
+        """
+        Maneja el comando /help.
+        """
+        await update.message.reply_text(
+            CORTANA_HELP,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_main_keyboard()
+        )
     
     def run(self):
         """
         Inicia el bot y lo mantiene ejecutándose.
-        
-        Este método:
-        1. Configura los handlers
-        2. Configura los recordatorios
-        3. Inicia el bot en modo polling (escucha constantemente mensajes)
         """
-        logger.info("🚀 Iniciando sistema Cortana...")
         
-        # Configurar handlers y recordatorios
         self.setup_handlers()
         self.setup_reminders()
         
-        # Mensaje de inicio
-        logger.info("=" * 50)
-        logger.info("✅ Cortana inicializada correctamente")
-        logger.info(f"👤 Spartan autorizado: {config.AUTHORIZED_USER_ID}")
-        logger.info("🔄 Sistema en línea, esperando comandos...")
-        logger.info("=" * 50)
+        print("\n" + "="*50)
+        print("✅ Bot de productividad iniciado correctamente")
+        print(f"👤 Usuario autorizado: {config.AUTHORIZED_USER_ID}")
+        print("🔄 Esperando mensajes...")
+        print("="*50 + "\n")
         
-        # Iniciar bot (polling = escuchar constantemente)
         self.app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
-# Punto de entrada principal
-if __name__ == "__main__":
+def main():
     """
-    Este bloque se ejecuta cuando ejecutas el archivo directamente.
-    
-    Para iniciar el bot, simplemente ejecuta:
-    python main.py
+    Función principal que crea e inicia el bot.
     """
     try:
-        # Crear instancia del bot
         bot = ProductivityBot()
-        
-        # Iniciar bot
         bot.run()
-        
     except KeyboardInterrupt:
-        logger.info("\n👋 Cortana desconectada. Stay safe, Spartan.")
+        print("\n\n⚠️ Bot detenido por el usuario")
     except Exception as e:
-        logger.error(f"❌ Error crítico del sistema: {e}", exc_info=True)
+        logger.error(f"❌ Error fatal: {e}", exc_info=True)
+        print(f"\n❌ Error: {e}")
+        print("Revisa los logs para más detalles")
+
+
+if __name__ == "__main__":
+    main()

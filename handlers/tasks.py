@@ -114,7 +114,7 @@ Total: {len(tasks)} objetivos
 
 Selecciona un objetivo para ver detalles:"""
     
-    keyboard = get_task_list_keyboard(tasks, filter_type=filter_type, page=1)
+    keyboard = get_task_list_keyboard(tasks, filter_type=filter_type, page=0)
     
     await query.edit_message_text(
         message,
